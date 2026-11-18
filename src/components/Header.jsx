@@ -74,7 +74,9 @@ export default function Header() {
         <p className="menu-watermark">Siriz</p>
         <div className="menu-panel">
           <ol className="menu-list">
-            {nav.map((item, index) => (
+            {nav
+              .filter((item) => item.to === "/")
+              .map((item, index) => (
               <li className="menu-item" key={item.to}>
                 <Link
                   to={item.to}

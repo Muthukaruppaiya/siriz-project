@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom"
-import { nav, studio } from "../data/site"
+import { studio } from "../data/site"
 import { Drift } from "./Parallax"
 
 export default function Footer() {
@@ -23,27 +23,8 @@ export default function Footer() {
           </a>
         </div>
         <div>
-          <p className="kicker">Signatures</p>
-          <Link to="/signatures">Overview</Link>
-          <Link to="/signatures/siriz-signature">Siriz Signature</Link>
-          <Link to="/signatures/mood-board">Signature Mood Board</Link>
-        </div>
-        <div>
-          <p className="kicker">Gallery</p>
-          <Link to="/gallery">Overview</Link>
-          <Link to="/gallery/interior">Interior Gallery</Link>
-          <Link to="/gallery/video">Video Gallery</Link>
-          <Link to="/gallery/projects">Projectwise Gallery</Link>
-        </div>
-        <div>
           <p className="kicker">Visit</p>
-          {nav
-            .filter((item) => ["Portfolio", "Guide", "Contact", "Home"].includes(item.label))
-            .map((item) => (
-              <Link key={item.to} to={item.to}>
-                {item.label}
-              </Link>
-            ))}
+          <Link to="/">Home</Link>
         </div>
       </div>
       <div className="footer-bottom">

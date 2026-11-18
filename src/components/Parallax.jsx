@@ -6,35 +6,14 @@ function reduced() {
 }
 
 export function ParallaxImage({ src, alt, className = "", speed = 0.22, priority = false }) {
-  const frameRef = useRef(null)
-  const imgRef = useRef(null)
-
-  useScrollFrame(() => {
-    const frame = frameRef.current
-    const image = imgRef.current
-    if (!frame || !image) return
-    if (reduced()) {
-      image.style.transform = "none"
-      return
-    }
-    const rect = frame.getBoundingClientRect()
-    const view = window.innerHeight || 1
-    if (rect.bottom < -view * 0.25 || rect.top > view * 1.25) return
-    const progress = (view - rect.top) / (view + rect.height)
-    const damp = window.innerWidth < 800 ? 0.72 : 1
-    const travel = rect.height * 0.22 * damp * (speed / 0.22)
-    const shift = (progress - 0.5) * travel
-    image.style.transform = `translate3d(0, ${shift}px, 0) scale(1.06)`
-  })
-
   return (
-    <div className={`parallax ${className}`} ref={frameRef}>
+    <div className={`parallax ${className}`}>
       <img
-        ref={imgRef}
         src={src}
         alt={alt}
+        data-parallax={speed}
         loading={priority ? "eager" : "lazy"}
-        fetchPriority={priority ? "high" : "auto"}
+        fetchpriority={priority ? "high" : "auto"}
       />
     </div>
   )
@@ -60,28 +39,39 @@ export function Drift({ speed = 0.12, className = "", children }) {
 }
 
 export function ParallaxLayers() {
-  useScrollFrame(() => {
-    if (reduced()) return
-    const view = window.innerHeight || 1
-    const damp = window.innerWidth < 800 ? 0.7 : 1
-    document.querySelectorAll(".band-copy, .page-hero-copy").forEach((el) => {
-      const parent = el.parentElement
-      if (!parent) return
-      const rect = parent.getBoundingClientRect()
-      if (rect.bottom < -80 || rect.top > view + 80) return
-      const progress = (view - rect.top) / (view + rect.height)
-      const shift = (0.5 - progress) * Math.min(110, rect.height * 0.14) * damp
-      el.style.transform = `translate3d(0, ${shift}px, 0)`
-    })
-    document.querySelectorAll(".masonry-item").forEach((frame, index) => {
-      const rect = frame.getBoundingClientRect()
-      if (rect.bottom < -80 || rect.top > view + 80) return
-      const progress = (view - rect.top) / (view + rect.height)
-      const depth = index % 3 === 0 ? 0.16 : index % 3 === 1 ? 0.08 : 0.22
-      const shift = (progress - 0.5) * rect.height * depth * damp
-      frame.style.setProperty("--py", `${shift}px`)
-    })
-  })
+  const shown = useRef(new WeakMap())
+
+  useEffect(() => {
+    let frame = 0
+    let running = true
+
+    const tick = () => {
+      if (!running) return
+      if (!reduced()) {
+        const view = window.innerHeight || 1
+        const damp = window.innerWidth < 800 ? 0.82 : 1
+        document.querySelectorAll("[data-parallax]").forEach((el) => {
+          const rect = el.getBoundingClientRect()
+          if (rect.bottom < -view * 0.35 || rect.top > view * 1.35) return
+          const speed = Number(el.getAttribute("data-parallax")) || 0.16
+          const progress = (rect.top + rect.height / 2 - view / 2) / view
+          const target = progress * speed * -360 * damp
+          const prev = shown.current.get(el) || 0
+          const next = prev + (target - prev) * 0.14
+          shown.current.set(el, next)
+          el.style.transform = `translate3d(0, ${next.toFixed(2)}px, 0)`
+        })
+      }
+      frame = requestAnimationFrame(tick)
+    }
+
+    frame = requestAnimationFrame(tick)
+    return () => {
+      running = false
+      cancelAnimationFrame(frame)
+    }
+  }, [])
+
   return null
 }
 

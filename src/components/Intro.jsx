@@ -4,44 +4,77 @@ import { useSmooth } from "../scroll"
 export default function Intro({ onDone }) {
   const api = useSmooth()
   const [leaving, setLeaving] = useState(false)
+  const [fading, setFading] = useState(false)
   const done = useRef(false)
+  const closed = useRef(false)
 
   useEffect(() => {
+    window.scrollTo(0, 0)
     api.stop()
-    return () => api.start()
+    document.body.dataset.scrollY = "0"
+    document.body.style.top = "0"
+    return () => {
+      document.body.dataset.scrollY = "0"
+      api.start()
+      window.scrollTo(0, 0)
+    }
   }, [api])
 
   useEffect(() => {
-    const hold = window.setTimeout(finish, 3200)
+    const mobile = window.matchMedia("(max-width: 680px)").matches
+    const hold = window.setTimeout(finish, mobile ? 700 : 900)
     return () => window.clearTimeout(hold)
   }, [])
+
+  function close() {
+    if (closed.current) return
+    closed.current = true
+    setFading(true)
+    window.setTimeout(onDone, 520)
+  }
 
   function finish() {
     if (done.current) return
     done.current = true
     setLeaving(true)
-    window.setTimeout(onDone, 1450)
+    window.setTimeout(close, 1100)
   }
 
   return (
-    <div className={`intro ${leaving ? "is-leave" : ""}`} aria-hidden="true">
+    <div className={`intro ${leaving ? "is-leave" : ""} ${fading ? "is-fade" : ""}`} role="dialog" aria-label="Siriz Interiors">
       <div className="intro-door intro-door-left">
-        <span className="intro-line intro-line-a" />
+        <span className="cupboard-face">
+          <span className="cupboard-panel" />
+          <span className="cupboard-sheen" />
+          <span className="cupboard-hinge cupboard-hinge-a" />
+          <span className="cupboard-hinge cupboard-hinge-b" />
+          <span className="cupboard-pull" />
+        </span>
+        <span className="cupboard-edge" />
       </div>
       <div className="intro-door intro-door-right">
-        <span className="intro-line intro-line-c" />
+        <span className="cupboard-face">
+          <span className="cupboard-panel" />
+          <span className="cupboard-sheen" />
+          <span className="cupboard-hinge cupboard-hinge-a" />
+          <span className="cupboard-hinge cupboard-hinge-b" />
+          <span className="cupboard-pull" />
+        </span>
+        <span className="cupboard-edge" />
       </div>
       <div className="intro-center">
         <div className="intro-seal">
           <svg className="intro-ring" viewBox="0 0 100 100" aria-hidden="true">
             <circle cx="50" cy="50" r="48" />
           </svg>
-          <img src="/logo.png" alt="" />
+          <img src="/logo.png" alt="Siriz Interiors" />
         </div>
-        <p className="intro-caption">Interior Atelier</p>
+        <p className="intro-caption">Interior atelier</p>
+        <p className="intro-place">Chennai</p>
+        <span className="intro-progress" aria-hidden="true" />
       </div>
-      <button className="intro-skip" type="button" onClick={finish}>
-        Skip
+      <button className="intro-enter" type="button" onClick={finish}>
+        Enter
       </button>
     </div>
   )

@@ -16,11 +16,19 @@ export function SmoothScroll({ children }) {
       },
       stop() {
         locks.current += 1
+        if (locks.current !== 1) return
+        const y = window.scrollY
+        document.body.dataset.scrollY = String(y)
+        document.body.style.top = `-${y}px`
         document.documentElement.classList.add("is-scroll-locked")
       },
       start() {
         locks.current = Math.max(0, locks.current - 1)
-        if (locks.current === 0) document.documentElement.classList.remove("is-scroll-locked")
+        if (locks.current !== 0) return
+        const y = Number(document.body.dataset.scrollY || 0)
+        document.documentElement.classList.remove("is-scroll-locked")
+        document.body.style.top = ""
+        window.scrollTo(0, y)
       },
       scrollTo(target) {
         const top = typeof target === "number" ? target : 0
