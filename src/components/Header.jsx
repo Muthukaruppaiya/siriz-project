@@ -54,7 +54,6 @@ export default function Header() {
         <Link to="/" className="brand" aria-label="Siriz Interiors, home">
           <img src="/logo.png" alt="Siriz Interiors" />
         </Link>
-        <p className="header-mark">Atelier</p>
         <button
           className={`nav-toggle ${open ? "is-open" : ""}`}
           type="button"

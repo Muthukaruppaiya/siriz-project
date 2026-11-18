@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react"
 import { studio } from "../data/site"
-import GuideModel from "./GuideModel"
+import Pip from "./Pip"
 
 const copy = {
   ta: {
-    name: "மேகா",
-    greeting: "வணக்கம், நான் மேகா. ஸ்டுடியோ, வருகை அல்லது அழைப்பு பற்றி கேளுங்கள்.",
-    dialog: "மேகாவுடன் அரட்டை",
+    name: "பிப்",
+    greeting: "வணக்கம், நான் பிப். ஏதேனும் உதவி வேண்டுமா?",
+    nudge: "உதவி வேண்டுமா?",
+    dialog: "பிப்புடன் அரட்டை",
     listen: "கேட்கிறேன்",
     talk: "பேசுகிறேன்",
     idle: "ஸ்டுடியோ உதவி",
@@ -38,9 +39,10 @@ const copy = {
     fallback: ["தொலைபேசி எண், மேடவாக்கம் ஸ்டுடியோ அல்லது வாட்ஸ்அப் செய்திக்கு உதவ முடியும்."],
   },
   en: {
-    name: "Mega",
-    greeting: "Hello, I'm Mega. Ask about the studio, a visit, or a call.",
-    dialog: "Chat with Mega",
+    name: "Pip",
+    greeting: "Hello, I'm Pip. Do you need any help?",
+    nudge: "May I help?",
+    dialog: "Chat with Pip",
     listen: "Listening",
     talk: "Speaking",
     idle: "Studio help",
@@ -75,9 +77,9 @@ const copy = {
 
 function storedLang() {
   try {
-    return localStorage.getItem("siriz-bot-lang") === "en" ? "en" : "ta"
+    return localStorage.getItem("siriz-bot-lang") === "ta" ? "ta" : "en"
   } catch {
-    return "ta"
+    return "en"
   }
 }
 
@@ -142,6 +144,8 @@ export default function CornerBot() {
   const [speaking, setSpeaking] = useState(false)
   const [muted, setMuted] = useState(false)
   const [lang, setLang] = useState(storedLang)
+  const [prompt, setPrompt] = useState(false)
+  const [waveTick, setWaveTick] = useState(0)
   const [messages, setMessages] = useState(() => {
     const start = storedLang()
     return [{ from: "bot", text: copy[start].greeting, lang: start }]
@@ -183,10 +187,37 @@ export default function CornerBot() {
     speak(copy[langRef.current].greeting)
   }, [open])
 
+  useEffect(() => {
+    if (open) return
+    recognitionRef.current?.abort()
+    setListening(false)
+    setHeard("")
+    window.speechSynthesis?.cancel()
+    setSpeaking(false)
+  }, [open])
+
   useEffect(() => () => {
     recognitionRef.current?.abort()
     window.speechSynthesis?.cancel()
   }, [])
+
+  useEffect(() => {
+    if (open) {
+      setPrompt(false)
+      return undefined
+    }
+    let hide = 0
+    const id = window.setInterval(() => {
+      setWaveTick((value) => value + 1)
+      setPrompt(true)
+      window.clearTimeout(hide)
+      hide = window.setTimeout(() => setPrompt(false), 2400)
+    }, 5000)
+    return () => {
+      window.clearInterval(id)
+      window.clearTimeout(hide)
+    }
+  }, [open])
 
   function send(text) {
     const value = text.trim()
@@ -386,6 +417,9 @@ export default function CornerBot() {
         </section>
       )}
 
+      {prompt && !open && (
+        <p className="bot-nudge" aria-hidden="true">{pack.nudge}</p>
+      )}
       <button
         className="bot-stage"
         type="button"
@@ -394,14 +428,7 @@ export default function CornerBot() {
         onClick={() => setOpen((value) => !value)}
       >
         <span className="bot-ring" />
-        <span className="bot-patrol">
-          <span className="bot-jump">
-            <span className="bot-shadow" />
-            <span className="guide-view">
-              <GuideModel speaking={speaking} listening={listening} />
-            </span>
-          </span>
-        </span>
+        <Pip speaking={speaking} listening={listening} waveTick={waveTick} />
       </button>
     </div>
   )

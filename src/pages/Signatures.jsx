@@ -24,7 +24,6 @@ export function Signatures() {
               <p className="kicker">Signatures</p>
               <h2>{item.title}</h2>
               <p>{item.summary}</p>
-              <span className="btn-line">Enter</span>
             </div>
           </Link>
         ))}

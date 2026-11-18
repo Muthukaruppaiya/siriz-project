@@ -1,11 +1,10 @@
 import { useEffect, useRef } from "react"
 import { useTitle } from "../useTitle"
 
+const FRAME_COUNT = 891
 
-const ENTER_FRAMES = 240
-
-function enterFrameSrc(index) {
-  return `/enter-frames/frame-${String(index + 1).padStart(3, "0")}.jpg`
+function frameSrc(index) {
+  return `/walk-smooth/frame-${String(index + 1).padStart(3, "0")}.jpg`
 }
 
 function reduced() {
@@ -22,36 +21,34 @@ export default function Home() {
     const section = reelRef.current
     const pin = pinRef.current
     const canvas = canvasRef.current
-    if (!section || !pin || !canvas) return
+    if (!section || !pin || !canvas) return undefined
 
     const ctx = canvas.getContext("2d", { alpha: false })
-    const images = new Array(ENTER_FRAMES)
-    let frame = 0
+    ctx.imageSmoothingEnabled = true
+    ctx.imageSmoothingQuality = "high"
+    const images = new Array(FRAME_COUNT)
+    let raf = 0
     let running = true
     let target = 0
     let shown = 0
+    let velocity = 0
     let sized = false
     let cursor = 0
-    let pumpTimer = 0
     const calm = reduced()
 
-    const loadFrame = (index) => {
-      if (index < 0 || index >= ENTER_FRAMES || images[index]) return
+    const load = (index) => {
+      if (index < 0 || index >= FRAME_COUNT || images[index]) return
       const image = new Image()
       image.decoding = "async"
-      image.src = enterFrameSrc(index)
+      image.src = frameSrc(index)
       images[index] = image
     }
+    for (let index = 0; index < 24; index += 1) load(index)
 
-    const pump = () => {
-      if (!running) return
-      const pos = Math.round(target * (ENTER_FRAMES - 1))
-      for (let index = pos - 1; index <= pos + 4; index += 1) loadFrame(index)
-      loadFrame(cursor)
-      cursor += 1
-      if (cursor < ENTER_FRAMES) pumpTimer = window.setTimeout(pump, 12)
+    const ready = (index) => {
+      const image = images[index]
+      return image?.complete && image.naturalWidth ? image : null
     }
-    pump()
 
     const place = () => {
       const rect = section.getBoundingClientRect()
@@ -71,24 +68,29 @@ export default function Home() {
       }
     }
 
-    const draw = (progress) => {
-      const max = ENTER_FRAMES - 1
-      const pos = Math.min(max, Math.max(0, progress * max))
+    const draw = () => {
+      const max = FRAME_COUNT - 1
+      const pos = Math.min(max, Math.max(0, shown * max))
       const index = Math.floor(pos)
       const mix = pos - index
-      const current = images[index]
-      const next = images[Math.min(max, index + 1)]
-      if (!current?.complete || !current.naturalWidth) return
+      let current = ready(index)
+      let next = ready(Math.min(max, index + 1))
+      if (!current) {
+        for (let look = index - 1; look >= 0; look -= 1) {
+          current = ready(look)
+          if (current) break
+        }
+      }
+      if (!current) return
       if (!sized) {
         canvas.width = current.naturalWidth
         canvas.height = current.naturalHeight
-        canvas.style.opacity = "1"
         sized = true
       }
       ctx.globalAlpha = 1
       ctx.drawImage(current, 0, 0, canvas.width, canvas.height)
-      if (next && next !== current && next.complete && next.naturalWidth && mix > 0.001) {
-        ctx.globalAlpha = mix
+      if (next && next !== current && mix > 0.001) {
+        ctx.globalAlpha = mix * mix * (3 - 2 * mix)
         ctx.drawImage(next, 0, 0, canvas.width, canvas.height)
         ctx.globalAlpha = 1
       }
@@ -100,18 +102,36 @@ export default function Home() {
       const total = Math.max(1, section.offsetHeight - window.innerHeight)
       const scrolled = Math.min(total, Math.max(0, -rect.top))
       target = scrolled / total
-      shown += (target - shown) * (calm ? 1 : 0.22)
-      if (Math.abs(target - shown) < 0.0004) shown = target
+      if (calm) {
+        shown = target
+        velocity = 0
+      } else {
+        velocity += (target - shown) * 0.042
+        velocity *= 0.82
+        shown += velocity
+        if (shown < 0 || shown > 1) {
+          shown = Math.min(1, Math.max(0, shown))
+          velocity = 0
+        }
+        if (Math.abs(target - shown) < 0.00015 && Math.abs(velocity) < 0.00001) {
+          shown = target
+          velocity = 0
+        }
+      }
+      const focus = Math.round(shown * (FRAME_COUNT - 1))
+      for (let index = focus - 8; index <= focus + 36; index += 1) load(index)
+      load(cursor)
+      load(cursor + 1)
+      if (cursor < FRAME_COUNT - 2) cursor += 2
       place()
-      draw(shown)
-      frame = requestAnimationFrame(tick)
+      draw()
+      raf = requestAnimationFrame(tick)
     }
 
-    frame = requestAnimationFrame(tick)
+    raf = requestAnimationFrame(tick)
     return () => {
       running = false
-      window.clearTimeout(pumpTimer)
-      cancelAnimationFrame(frame)
+      cancelAnimationFrame(raf)
     }
   }, [])
 
@@ -121,8 +141,15 @@ export default function Home() {
     <>
       <section className="enter-reel" ref={reelRef} data-header="light">
         <div className="enter-reel-pin" ref={pinRef}>
-          <img className="enter-poster" src={enterFrameSrc(0)} alt="" />
-          <canvas ref={canvasRef} />
+          <canvas ref={canvasRef} className="enter-film" />
+          <h1 className="enter-name">
+            <span className="rise-mask">
+              <span>Siriz</span>
+            </span>
+            <span className="rise-mask">
+              <span>Interiors</span>
+            </span>
+          </h1>
         </div>
       </section>
 

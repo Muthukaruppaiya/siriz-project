@@ -50,7 +50,6 @@ export function GalleryHome() {
             <p className="kicker">{hub.kicker}</p>
             <h2>{hub.title}</h2>
             <p>{hub.lede}</p>
-            <span className="btn-line">Enter</span>
           </div>
         </Link>
       ))}

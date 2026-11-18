@@ -62,20 +62,9 @@ export default function Intro({ onDone }) {
         </span>
         <span className="cupboard-edge" />
       </div>
-      <div className="intro-center">
-        <div className="intro-seal">
-          <svg className="intro-ring" viewBox="0 0 100 100" aria-hidden="true">
-            <circle cx="50" cy="50" r="48" />
-          </svg>
-          <img src="/logo.png" alt="Siriz Interiors" />
-        </div>
-        <p className="intro-caption">Interior atelier</p>
-        <p className="intro-place">Chennai</p>
-        <span className="intro-progress" aria-hidden="true" />
+      <div className="intro-top">
+        <img src="/logo.png" alt="Siriz Interiors" />
       </div>
-      <button className="intro-enter" type="button" onClick={finish}>
-        Enter
-      </button>
     </div>
   )
 }
