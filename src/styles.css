@@ -514,9 +514,57 @@ main section:not(.enter-reel) {
     padding: 18vh 7vw;
   }
 }
+.turn-page {
+  position: relative;
+  height: 100svh;
+  min-height: 100svh;
+  overflow: hidden;
+  display: grid;
+  align-items: end;
+  background: #1a120e;
+  color: var(--cream);
+}
+.turn-photo {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.turn-photo img {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 138%;
+  top: -19%;
+  object-fit: cover;
+  will-change: transform;
+}
+.turn-copy {
+  position: relative;
+  z-index: 1;
+  padding: 14vh 8vw 12vh;
+  max-width: 18em;
+  text-shadow: 0 16px 36px rgba(20, 12, 8, 0.45);
+}
+.turn-copy .kicker { color: rgba(243, 238, 228, 0.78); }
+.turn-copy h2 {
+  margin: 10px 0 0;
+  font-size: clamp(2.6rem, 8vw, 5.4rem);
+  line-height: 0.92;
+}
+.turn-copy p:last-child:not(.kicker) {
+  margin: 16px 0 0;
+  max-width: 28rem;
+  font-size: 1rem;
+  line-height: 1.5;
+  color: rgba(243, 238, 228, 0.88);
+}
+@media (max-width: 760px) {
+  .turn-copy { padding: 18vh 7vw 11vh; }
+  .turn-copy p:last-child:not(.kicker) { font-size: 0.95rem; }
+}
 .enter-reel {
   position: relative;
-  height: 860vh;
+  height: 400vh;
   background: #1a120e;
 }
 .enter-reel-pin {
@@ -539,6 +587,13 @@ main section:not(.enter-reel) {
   object-fit: cover;
   object-position: center center;
   background: #1a120e;
+  transform: scale(1);
+  transform-origin: center center;
+  transition: filter 0.5s ease, transform 0.5s ease;
+}
+.enter-film.is-held {
+  filter: blur(7px);
+  transform: scale(1.03);
 }
 .enter-name {
   position: absolute;
@@ -552,6 +607,81 @@ main section:not(.enter-reel) {
   pointer-events: none;
   color: var(--cream);
   text-align: center;
+  transition: opacity 0.35s ease;
+}
+.enter-name.is-quiet { opacity: 0; }
+.enter-reel,
+.turn-page { touch-action: none; }
+.room-copy {
+  position: absolute;
+  z-index: 5;
+  left: 50%;
+  top: 50%;
+  width: min(42rem, 78vw);
+  transform: translate(-50%, -50%);
+  text-align: center;
+  color: #fffaf3;
+  pointer-events: none;
+}
+.room-copy .rise-line {
+  display: block;
+  overflow: hidden;
+  padding-bottom: 0.08em;
+}
+.room-copy .rise-line span {
+  display: block;
+  transform: translateY(115%);
+  text-shadow: 0 12px 32px rgba(12, 8, 4, 0.55);
+}
+.room-copy.is-on .rise-line span {
+  animation: maskRise 1.15s var(--ease) forwards;
+}
+.room-copy.is-on .rise-line:nth-child(2) span { animation-delay: 0.18s; }
+.room-copy .welcome span {
+  font-family: Fraunces, "Iowan Old Style", Palatino, serif;
+  font-weight: 640;
+  font-size: clamp(2.4rem, 4.6vw, 4.4rem);
+  line-height: 1.02;
+  letter-spacing: -0.03em;
+}
+.room-copy .tag span {
+  margin-top: 0.28em;
+  font-family: Fraunces, "Iowan Old Style", Palatino, serif;
+  font-style: italic;
+  font-weight: 520;
+  font-size: clamp(1.7rem, 2.8vw, 2.45rem);
+  letter-spacing: 0;
+}
+.room-copy .body span {
+  margin: 0 auto 0.85em;
+  font-family: Figtree, "Segoe UI", sans-serif;
+  font-weight: 500;
+  font-size: clamp(1.12rem, 1.5vw, 1.35rem);
+  line-height: 1.5;
+  letter-spacing: 0;
+}
+.room-copy .body:last-child span { margin-bottom: 0; }
+.room-copy .quote span,
+.room-copy .quote-soft span {
+  font-family: Fraunces, "Iowan Old Style", Palatino, serif;
+  font-weight: 640;
+  font-size: clamp(2.15rem, 4vw, 3.6rem);
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+}
+.room-copy .quote-soft span {
+  margin-top: 0.16em;
+  font-style: italic;
+  font-weight: 520;
+}
+@media (max-width: 760px) {
+  .enter-film.is-held { filter: blur(5px); }
+  .room-copy { width: calc(100vw - 28px); }
+  .room-copy .welcome span { font-size: 2.35rem; }
+  .room-copy .tag span { font-size: 1.7rem; }
+  .room-copy .body span { font-size: 1.16rem; line-height: 1.45; }
+  .room-copy .quote span,
+  .room-copy .quote-soft span { font-size: 2.05rem; }
 }
 .rise-mask {
   display: block;
@@ -1656,8 +1786,8 @@ html.is-intro .corner-bot { opacity: 0; pointer-events: none; }
   .practice-row p { max-height: none; opacity: 1; margin-top: 8px; }
   .practice-name { color: var(--cream); -webkit-text-stroke: 0; }
   .view, .intro, .scroll-cue::before, .film-stage img.is-on,
-  .rise-mask span { animation: none !important; }
-  .rise-mask span { transform: none !important; }
+  .rise-mask span, .room-copy .rise-line span { animation: none !important; }
+  .rise-mask span, .room-copy .rise-line span { transform: none !important; }
   .intro { display: none; }
   .film-stage img.is-on { opacity: 1; transform: none; }
 }
