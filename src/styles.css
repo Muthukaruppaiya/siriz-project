@@ -472,18 +472,47 @@ html.has-cursor input, html.has-cursor textarea, html.has-cursor select { cursor
 main section:not(.enter-reel) {
   min-height: 100svh;
 }
-.test-page {
+.story {
+  position: relative;
   display: grid;
-  place-items: center;
-  padding: 12vh 8vw;
-  background: var(--cream);
+  align-items: end;
+  padding: 16vh 8vw;
+  overflow: hidden;
+  background: #1a120e;
+  color: var(--cream);
 }
-.test-page p {
+.story-photo {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+}
+.story-photo img {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 136%;
+  top: -18%;
+  object-fit: cover;
+  will-change: transform;
+}
+.story h2 {
+  position: relative;
+  z-index: 1;
   margin: 0;
+  max-width: 8ch;
   font-family: var(--serif);
-  font-size: clamp(2.6rem, 7vw, 5.5rem);
-  line-height: 1;
   font-weight: 500;
+  font-size: clamp(2.8rem, 8vw, 5.6rem);
+  line-height: 0.92;
+  text-shadow: 0 18px 40px rgba(20, 12, 8, 0.4);
+}
+@media (max-width: 760px) {
+  main section.story {
+    min-height: 168svh;
+    align-items: center;
+    padding: 18vh 7vw;
+  }
 }
 .enter-reel {
   position: relative;
