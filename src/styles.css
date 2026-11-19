@@ -524,6 +524,9 @@ main section:not(.enter-reel) {
   background: #1a120e;
   color: var(--cream);
 }
+.turn-page.is-curve {
+  transform: translateZ(0);
+}
 .turn-photo {
   position: absolute;
   inset: 0;
@@ -617,10 +620,25 @@ main section:not(.enter-reel) {
   z-index: 5;
   left: 50%;
   top: 50%;
-  width: min(42rem, 78vw);
+  width: min(40rem, 78vw);
   transform: translate(-50%, -50%);
   text-align: center;
   color: #fffaf3;
+  pointer-events: none;
+}
+.room-copy.is-story,
+.room-copy.is-quote { width: min(48rem, 88vw); }
+.room-copy.is-story::before,
+.room-copy.is-quote::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  left: 50%;
+  top: 46%;
+  width: 160%;
+  height: 190%;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(ellipse at center, rgba(18, 12, 8, 0.2) 0%, rgba(18, 12, 8, 0.06) 40%, transparent 70%);
   pointer-events: none;
 }
 .room-copy .rise-line {
@@ -630,13 +648,44 @@ main section:not(.enter-reel) {
 }
 .room-copy .rise-line span {
   display: block;
+  font-family: Fraunces, "Iowan Old Style", Palatino, serif;
+  font-weight: 560;
+  font-style: normal;
+  letter-spacing: 0;
+  text-transform: none;
   transform: translateY(115%);
   text-shadow: 0 12px 32px rgba(12, 8, 4, 0.55);
 }
 .room-copy.is-on .rise-line span {
   animation: maskRise 1.15s var(--ease) forwards;
 }
-.room-copy.is-on .rise-line:nth-child(2) span { animation-delay: 0.18s; }
+.room-copy.is-on .rise-line:nth-child(2) span { animation-delay: 0.14s; }
+.room-copy.is-on .rise-line:nth-child(3) span { animation-delay: 0.26s; }
+.room-copy .title { position: relative; }
+.room-copy .title::after {
+  content: "";
+  display: block;
+  width: 46px;
+  height: 1px;
+  margin: 0.22em auto 0.15em;
+  background: rgba(255, 250, 243, 0.9);
+  transform: scaleX(0);
+  transform-origin: center;
+}
+.room-copy.is-on .title::after {
+  animation: titleLine 0.7s var(--ease) 0.55s forwards;
+}
+.room-copy.is-on .title span {
+  animation: titleIn 1.15s var(--ease) forwards;
+}
+.room-copy .title span {
+  font-size: clamp(4.8rem, 11vw, 8.4rem);
+  line-height: 0.9;
+}
+.room-copy.is-quote .title span {
+  font-size: clamp(2.8rem, 5.4vw, 4.6rem);
+  line-height: 1.02;
+}
 .room-copy .welcome span {
   font-family: Fraunces, "Iowan Old Style", Palatino, serif;
   font-weight: 640;
@@ -646,42 +695,27 @@ main section:not(.enter-reel) {
 }
 .room-copy .tag span {
   margin-top: 0.28em;
-  font-family: Fraunces, "Iowan Old Style", Palatino, serif;
-  font-style: italic;
-  font-weight: 520;
   font-size: clamp(1.7rem, 2.8vw, 2.45rem);
-  letter-spacing: 0;
 }
 .room-copy .body span {
-  margin: 0 auto 0.85em;
-  font-family: Figtree, "Segoe UI", sans-serif;
-  font-weight: 500;
-  font-size: clamp(1.12rem, 1.5vw, 1.35rem);
-  line-height: 1.5;
-  letter-spacing: 0;
+  margin: 0.45em auto 0;
+  max-width: 34rem;
+  font-size: clamp(1.2rem, 1.8vw, 1.55rem);
+  line-height: 1.45;
 }
-.room-copy .body:last-child span { margin-bottom: 0; }
-.room-copy .quote span,
-.room-copy .quote-soft span {
-  font-family: Fraunces, "Iowan Old Style", Palatino, serif;
-  font-weight: 640;
-  font-size: clamp(2.15rem, 4vw, 3.6rem);
-  line-height: 1.08;
-  letter-spacing: -0.03em;
-}
-.room-copy .quote-soft span {
-  margin-top: 0.16em;
-  font-style: italic;
-  font-weight: 520;
+@media (max-height: 720px) {
+  .room-copy.is-story { top: calc(50% - 22px); }
 }
 @media (max-width: 760px) {
   .enter-film.is-held { filter: blur(5px); }
   .room-copy { width: calc(100vw - 28px); }
+  .room-copy.is-story,
+  .room-copy.is-quote { width: calc(100vw - 32px); }
   .room-copy .welcome span { font-size: 2.35rem; }
   .room-copy .tag span { font-size: 1.7rem; }
-  .room-copy .body span { font-size: 1.16rem; line-height: 1.45; }
-  .room-copy .quote span,
-  .room-copy .quote-soft span { font-size: 2.05rem; }
+  .room-copy .title span { font-size: 4.4rem; }
+  .room-copy.is-quote .title span { font-size: 2.35rem; }
+  .room-copy .body span { font-size: 1.05rem; line-height: 1.45; }
 }
 .rise-mask {
   display: block;
@@ -707,6 +741,14 @@ html:not(.is-intro) .rise-mask + .rise-mask span {
 @keyframes maskRise {
   from { transform: translateY(115%); }
   to { transform: translateY(0); }
+}
+@keyframes titleIn {
+  from { transform: translateY(115%) scale(0.94); filter: blur(8px); }
+  to { transform: translateY(0) scale(1); filter: blur(0); }
+}
+@keyframes titleLine {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
 }
 .hero, .page-hero, .band, .contact-figure { position: relative; overflow: hidden; color: var(--cream); }
 .hero { height: 100vh; min-height: 640px; }
@@ -1725,31 +1767,59 @@ html.is-intro .corner-bot { opacity: 0; pointer-events: none; }
 .bot-hear { display: inline-flex; align-items: center; gap: 4px; margin-top: 8px; color: var(--brown); font-size: 0.78rem; }
 .bot-line-bot { background: #fff; border-bottom-left-radius: 5px; box-shadow: 0 6px 16px rgba(36, 23, 15, 0.06); }
 .bot-line-you { background: var(--brown); color: var(--cream); border-bottom-right-radius: 5px; }
-.bot-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 14px 10px; }
+.bot-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 14px 10px; max-height: 96px; overflow: auto; }
 .bot-chips button {
   min-height: 34px;
   padding: 0 12px;
   border: 1px solid var(--line);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.8);
-  font-size: 0.78rem;
+  font-size: 0.74rem;
+  text-align: left;
+  letter-spacing: 0;
+  text-transform: none;
 }
+.bot-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 14px 10px; }
+.bot-action {
+  min-height: 30px;
+  padding: 0 10px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(58, 41, 31, 0.08);
+  color: var(--brown);
+  font-size: 0.74rem;
+  text-decoration: none;
+}
+.bot-typing { display: inline-flex; align-items: center; gap: 5px; min-width: 54px; }
+.bot-typing span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--brown);
+  animation: bot-dot 0.9s ease-in-out infinite;
+}
+.bot-typing span:nth-child(2) { animation-delay: 0.15s; }
+.bot-typing span:nth-child(3) { animation-delay: 0.3s; }
 .bot-wave { display: flex; align-items: flex-end; gap: 4px; height: 18px; margin: 0 14px 8px; }
 .bot-wave span { width: 4px; height: 8px; border-radius: 4px; background: #8d4a3a; animation: bot-wave 0.8s ease-in-out infinite; }
 .bot-wave span:nth-child(2) { animation-delay: 0.1s; }
 .bot-wave span:nth-child(3) { animation-delay: 0.2s; }
 .bot-wave span:nth-child(4) { animation-delay: 0.3s; }
 .bot-heard { margin: 0 14px 8px; color: var(--muted); font-size: 0.84rem; font-style: italic; }
-.bot-form { display: flex; align-items: center; gap: 8px; padding: 0 12px 12px; }
-.bot-form input {
+.bot-form { display: flex; align-items: flex-end; gap: 8px; padding: 0 12px 12px; }
+.bot-form textarea {
   flex: 1;
   min-width: 0;
   min-height: 46px;
-  padding: 0 14px;
+  max-height: 96px;
+  padding: 12px 14px;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: 18px;
   background: #fff;
   font-size: 16px;
+  line-height: 1.35;
+  resize: none;
 }
 .bot-mic, .bot-send {
   width: 46px;
@@ -1769,6 +1839,10 @@ html.is-intro .corner-bot { opacity: 0; pointer-events: none; }
   0%, 100% { height: 6px; }
   50% { height: 16px; }
 }
+@keyframes bot-dot {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.35; }
+  40% { transform: translateY(-3px); opacity: 1; }
+}
 @keyframes bot-ring {
   0% { transform: scale(0.86); opacity: 0.7; }
   100% { transform: scale(1.12); opacity: 0; }
@@ -1786,8 +1860,8 @@ html.is-intro .corner-bot { opacity: 0; pointer-events: none; }
   .practice-row p { max-height: none; opacity: 1; margin-top: 8px; }
   .practice-name { color: var(--cream); -webkit-text-stroke: 0; }
   .view, .intro, .scroll-cue::before, .film-stage img.is-on,
-  .rise-mask span, .room-copy .rise-line span { animation: none !important; }
-  .rise-mask span, .room-copy .rise-line span { transform: none !important; }
+  .rise-mask span, .room-copy .rise-line span, .room-copy .title::after { animation: none !important; }
+  .rise-mask span, .room-copy .rise-line span, .room-copy .title::after { transform: none !important; filter: none !important; }
   .intro { display: none; }
   .film-stage img.is-on { opacity: 1; transform: none; }
 }

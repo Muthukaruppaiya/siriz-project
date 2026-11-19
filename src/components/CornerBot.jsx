@@ -1,16 +1,21 @@
 import { useEffect, useRef, useState } from "react"
 import { studio } from "../data/site"
+import { suggestedQuestions } from "../data/chatKnowledge"
+import { fetchAiReply } from "../lib/chatApi"
+import { createChatSession } from "../lib/chatEngine"
 import Pip from "./Pip"
 
 const copy = {
   ta: {
     name: "பிப்",
-    greeting: "வணக்கம், நான் பிப். ஏதேனும் உதவி வேண்டுமா?",
+    role: "உள்துறை உதவியாளர்",
+    greeting: "வணக்கம், நான் பிப் — உங்கள் உள்துறை வடிவமைப்பு உதவியாளர். சேவைகள், பாணிகள், அல்லது ஆலோசனை பற்றி கேளுங்கள்.",
     nudge: "உதவி வேண்டுமா?",
-    dialog: "பிப்புடன் அரட்டை",
+    dialog: "உள்துறை உதவியாளருடன் அரட்டை",
     listen: "கேட்கிறேன்",
     talk: "பேசுகிறேன்",
-    idle: "ஸ்டுடியோ உதவி",
+    typing: "தட்டச்சு செய்கிறேன்",
+    idle: "உள்துறை உதவி",
     muteOn: "குரலை இயக்கு",
     muteOff: "குரலை நிறுத்து",
     close: "அரட்டையை மூடு",
@@ -24,28 +29,26 @@ const copy = {
     micOff: "குரல் செய்தி",
     switchTo: "EN",
     switchLabel: "ஆங்கிலத்திற்கு மாறு",
-    chips: ["அழைப்பு", "முகவரி", "வாட்ஸ்அப்"],
-    unsupported: "குரல் உள்ளீடு Chrome அல்லது Edge-ல் கிடைக்கும். நீங்கள் தட்டச்சு செய்யலாம், பதிலை நான் பேசுவேன்.",
-    blocked: "மைக்ரோஃபோன் தடுக்கப்பட்டுள்ளது. இந்த தளத்திற்கு மைக் அனுமதி கொடுங்கள், அல்லது தட்டச்சு செய்யுங்கள்.",
+    clear: "அழி",
+    clearLabel: "அரட்டையை அழி",
+    whatsapp: "வாட்ஸ்அப்",
+    whatsappLabel: "வாட்ஸ்அப்பில் தொடர்பு",
+    error: "இப்போது பதிலளிக்க முடியவில்லை. மீண்டும் முயலவும் அல்லது வாட்ஸ்அப்பைப் பயன்படுத்தவும்.",
+    unsupported: "குரல் உள்ளீடு Chrome அல்லது Edge-ல் கிடைக்கும். நீங்கள் தட்டச்சு செய்யலாம்.",
+    blocked: "மைக்ரோஃபோன் தடுக்கப்பட்டுள்ளது. அனுமதி கொடுங்கள், அல்லது தட்டச்சு செய்யுங்கள்.",
     voice: "ta-IN",
     voicePrefix: "ta",
-    whatsapp: ["வாட்ஸ்அப்பில் ஸ்டுடியோவுக்கு செய்தி அனுப்புங்கள்.", "வாட்ஸ்அப் திறக்க"],
-    phone: [`ஸ்டுடியோ எண் ${studio.phone}.`, "இப்போது அழைக்க"],
-    email: [`${studio.email} என்ற முகவரிக்கு எழுதுங்கள்.`, "மின்னஞ்சல் அனுப்பு"],
-    address: [`ஸ்டுடியோ முகவரி: ${studio.location}.`],
-    price: ["ஒவ்வொரு வீடும் உரையாடலுக்குப் பிறகு விலை நிர்ணயம் செய்யப்படும். அழைப்பு எளிதான தொடக்கம்.", "ஸ்டுடியோவை அழைக்க"],
-    time: ["டெலிவரி நாற்பத்தைந்து நாட்கள். மர வேலைக்கு பத்து ஆண்டு உத்தரவாதம்."],
-    hi: ["வணக்கம். தொலைபேசி எண், முகவரி அல்லது வேலை எப்படி தொடங்கும் என்று சொல்ல முடியும்."],
-    fallback: ["தொலைபேசி எண், மேடவாக்கம் ஸ்டுடியோ அல்லது வாட்ஸ்அப் செய்திக்கு உதவ முடியும்."],
   },
   en: {
     name: "Pip",
-    greeting: "Hello, I'm Pip. Do you need any help?",
+    role: "Interior Design Assistant",
+    greeting: "Hello, I'm Pip — your Interior Design Assistant. Ask about services, styles, materials, budget planning, or book a consultation.",
     nudge: "May I help?",
-    dialog: "Chat with Pip",
+    dialog: "Chat with the Interior Design Assistant",
     listen: "Listening",
     talk: "Speaking",
-    idle: "Studio help",
+    typing: "Typing",
+    idle: "Interior help",
     muteOn: "Turn voice on",
     muteOff: "Mute voice",
     close: "Close chat",
@@ -59,19 +62,15 @@ const copy = {
     micOff: "Voice message",
     switchTo: "தமிழ்",
     switchLabel: "Switch chat to Tamil",
-    chips: ["Call", "Address", "WhatsApp"],
-    unsupported: "Voice input works in Chrome or Edge. You can type, and I will speak the reply.",
+    clear: "Clear",
+    clearLabel: "Clear chat",
+    whatsapp: "WhatsApp",
+    whatsappLabel: "Contact on WhatsApp",
+    error: "I could not reply just now. Please try again or use WhatsApp.",
+    unsupported: "Voice input works in Chrome or Edge. You can type instead.",
     blocked: "The microphone is blocked. Allow the mic for this site, or type your message.",
     voice: "en-IN",
     voicePrefix: "en",
-    whatsapp: ["Message the studio on WhatsApp.", "Open WhatsApp"],
-    phone: [`The studio number is ${studio.phone}.`, "Call now"],
-    email: [`Write to ${studio.email}.`, "Send email"],
-    address: [`Studio address: ${studio.location}.`],
-    price: ["Each home is priced after a conversation. A call is the simplest start.", "Call the studio"],
-    time: ["Delivery is forty-five days. Woodwork carries a ten-year warranty."],
-    hi: ["Hello. I can share the phone number, the address, or how a project starts."],
-    fallback: ["I can help with the phone number, the Medavakkam studio, or a WhatsApp message."],
   },
 }
 
@@ -81,20 +80,6 @@ function storedLang() {
   } catch {
     return "en"
   }
-}
-
-function answer(raw, lang) {
-  const pack = copy[lang]
-  const text = raw.toLowerCase()
-  const reply = (key, extra = {}) => ({ text: pack[key][0], label: pack[key][1], ...extra })
-  if (/whatsapp|whats app|வாட்ஸ்/.test(text)) return reply("whatsapp", { href: studio.whatsapp })
-  if (/phone|call|number|contact|அழை|தொலை/.test(text)) return reply("phone", { href: studio.phoneHref })
-  if (/mail|email|மின்னஞ்சல்/.test(text)) return reply("email", { href: `mailto:${studio.email}` })
-  if (/where|address|visit|chennai|location|studio|முகவரி|சென்னை|ஸ்டுடியோ|வருகை/.test(text)) return reply("address")
-  if (/price|cost|quote|budget|charge|விலை/.test(text)) return reply("price", { href: studio.phoneHref })
-  if (/time|day|long|deliver|warranty|நாள்|உத்தரவாதம்|டெலிவரி/.test(text)) return reply("time")
-  if (/hi|hello|hey|வணக்கம்|வணக்க/.test(text)) return reply("hi")
-  return reply("fallback")
 }
 
 function speechRecognition() {
@@ -136,13 +121,23 @@ function IconSound({ off = false }) {
   )
 }
 
+function IconClear() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 7h16M9 7V5h6v2M8 7l1 12h6l1-12" />
+    </svg>
+  )
+}
+
 export default function CornerBot() {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState("")
   const [heard, setHeard] = useState("")
   const [listening, setListening] = useState(false)
   const [speaking, setSpeaking] = useState(false)
+  const [typing, setTyping] = useState(false)
   const [muted, setMuted] = useState(false)
+  const [busy, setBusy] = useState(false)
   const [lang, setLang] = useState(storedLang)
   const [prompt, setPrompt] = useState(false)
   const [waveTick, setWaveTick] = useState(0)
@@ -155,12 +150,14 @@ export default function CornerBot() {
   const recognitionRef = useRef(null)
   const mutedRef = useRef(false)
   const langRef = useRef(lang)
+  const sessionRef = useRef(createChatSession())
   const greeted = useRef(false)
   const pack = copy[lang]
+  const suggestions = suggestedQuestions[lang]
 
   function speak(text, voiceLang = langRef.current) {
     if (mutedRef.current || !window.speechSynthesis || !text) return
-    const voicePack = copy[voiceLang] || copy.ta
+    const voicePack = copy[voiceLang] || copy.en
     window.speechSynthesis.cancel()
     const utter = new SpeechSynthesisUtterance(text)
     utter.lang = voicePack.voice
@@ -179,7 +176,7 @@ export default function CornerBot() {
     const list = listRef.current
     if (!open || !list) return
     list.scrollTop = list.scrollHeight
-  }, [open, messages, heard])
+  }, [open, messages, heard, typing])
 
   useEffect(() => {
     if (!open || greeted.current) return
@@ -219,19 +216,60 @@ export default function CornerBot() {
     }
   }, [open])
 
+  async function respond(value, historyItems) {
+    const active = langRef.current
+    setTyping(true)
+    setBusy(true)
+    try {
+      const collecting = sessionRef.current.snapshot().collecting
+      const history = historyItems.slice(-12).map((item) => ({
+        role: item.from === "you" ? "user" : "assistant",
+        content: item.text,
+      }))
+      const remote = collecting ? null : await fetchAiReply({ messages: history, lang: active })
+      const reply = remote || await sessionRef.current.reply(value, active)
+      setMessages((items) => [...items, { from: "bot", ...reply, lang: active }])
+      speak(reply.text, active)
+    } catch {
+      setMessages((items) => [
+        ...items,
+        {
+          from: "bot",
+          text: copy[active].error,
+          lang: active,
+          href: studio.whatsapp,
+          label: copy[active].whatsapp,
+        },
+      ])
+    } finally {
+      setTyping(false)
+      setBusy(false)
+    }
+  }
+
   function send(text) {
     const value = text.trim()
-    if (!value) return
+    if (!value || busy) return
     const active = langRef.current
-    const reply = answer(value, active)
-    setMessages((items) => [
-      ...items,
-      { from: "you", text: value, lang: active },
-      { from: "bot", ...reply, lang: active },
-    ])
+    const history = [...messages, { from: "you", text: value, lang: active }]
+    setBusy(true)
+    setMessages(history)
     setDraft("")
     setHeard("")
-    speak(reply.text, active)
+    respond(value, history)
+  }
+
+  function clearChat() {
+    sessionRef.current = createChatSession()
+    recognitionRef.current?.abort()
+    setListening(false)
+    setHeard("")
+    window.speechSynthesis?.cancel()
+    setSpeaking(false)
+    setTyping(false)
+    setBusy(false)
+    const active = langRef.current
+    setMessages([{ from: "bot", text: copy[active].greeting, lang: active }])
   }
 
   function switchLang() {
@@ -314,10 +352,11 @@ export default function CornerBot() {
     event.stopPropagation()
   }
 
-  const status = listening ? pack.listen : speaking ? pack.talk : pack.idle
+  const status = listening ? pack.listen : typing ? pack.typing : speaking ? pack.talk : pack.idle
+  const showSuggestions = messages.length <= 2 && !typing
 
   return (
-    <div className={`corner-bot ${open ? "is-open" : ""} ${listening ? "is-listen" : ""} ${speaking ? "is-talking" : ""}`}>
+    <div className={`corner-bot ${open ? "is-open" : ""} ${listening ? "is-listen" : ""} ${speaking || typing ? "is-talking" : ""}`}>
       {open && (
         <section
           className="bot-panel"
@@ -341,6 +380,9 @@ export default function CornerBot() {
             <div className="bot-tools">
               <button type="button" className="bot-lang" onClick={switchLang} aria-label={pack.switchLabel}>
                 {pack.switchTo}
+              </button>
+              <button type="button" className="bot-icon" aria-label={pack.clearLabel} onClick={clearChat}>
+                <IconClear />
               </button>
               <button type="button" className="bot-icon" aria-pressed={muted} aria-label={muted ? pack.muteOn : pack.muteOff} onClick={toggleMute}>
                 <IconSound off={muted} />
@@ -370,13 +412,33 @@ export default function CornerBot() {
                 </div>
               </div>
             ))}
+            {typing && (
+              <div className="bot-row bot-row-bot">
+                <span className="bot-avatar" aria-hidden="true" />
+                <div className="bot-line bot-line-bot bot-typing" aria-label={pack.typing}>
+                  <span />
+                  <span />
+                  <span />
+                </div>
+              </div>
+            )}
           </div>
-          <div className="bot-chips">
-            {pack.chips.map((chip) => (
-              <button key={chip} type="button" onClick={() => send(chip)}>
-                {chip}
-              </button>
-            ))}
+          {showSuggestions && (
+            <div className="bot-chips">
+              {suggestions.map((chip) => (
+                <button key={chip} type="button" disabled={busy} onClick={() => send(chip)}>
+                  {chip}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="bot-actions">
+            <a className="bot-action" href={studio.whatsapp} target="_blank" rel="noreferrer" aria-label={pack.whatsappLabel}>
+              {pack.whatsapp}
+            </a>
+            <a className="bot-action" href={studio.phoneHref}>
+              {studio.phone}
+            </a>
           </div>
           {listening && (
             <div className="bot-wave" aria-hidden="true">
@@ -403,14 +465,21 @@ export default function CornerBot() {
             >
               <IconMic />
             </button>
-            <input
+            <textarea
               ref={fieldRef}
+              rows={1}
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault()
+                  send(draft)
+                }
+              }}
               placeholder={pack.placeholder}
               aria-label={pack.message}
             />
-            <button className="bot-send" type="submit" aria-label={pack.send}>
+            <button className="bot-send" type="submit" aria-label={pack.send} disabled={busy}>
               <IconSend />
             </button>
           </form>
@@ -428,7 +497,7 @@ export default function CornerBot() {
         onClick={() => setOpen((value) => !value)}
       >
         <span className="bot-ring" />
-        <Pip speaking={speaking} listening={listening} waveTick={waveTick} />
+        <Pip speaking={speaking || typing} listening={listening} waveTick={waveTick} />
       </button>
     </div>
   )

@@ -29,6 +29,7 @@ const ROOM_COPY = [
   {
     tone: "story",
     lines: [
+      { kind: "title", text: "About" },
       {
         kind: "body",
         text: "We at Siriz Interiors, with 11 years of solid experience, ensure we consistently exceed our customer's expectations through quality service.",
@@ -42,8 +43,8 @@ const ROOM_COPY = [
   {
     tone: "quote",
     lines: [
-      { kind: "quote", text: "We Design your Dream Home," },
-      { kind: "quote-soft", text: "the excellence of interior" },
+      { kind: "title", text: "We design your dream home," },
+      { kind: "body", text: "the excellence of interior" },
     ],
   },
 ]
@@ -119,13 +120,16 @@ export default function Home() {
 
     const phone = phoneView()
     const step = phone ? 4 : 3
-    const ahead = phone ? 16 : 22
-    const slots = phone ? 4 : 5
-    const keep = phone ? 18 : 24
+    const ahead = phone ? 20 : 28
+    const behind = phone ? 8 : 10
+    const slots = phone ? 4 : 6
+    const keep = phone ? 48 : 90
+    const decodeWidth = phone ? 640 : 1100
     const ctx = canvas.getContext("2d", { alpha: false })
     const bitmaps = new Map()
     const loading = new Set()
     let queue = []
+    let planKey = ""
     let raf = 0
     let ticking = false
     let running = true
@@ -204,12 +208,14 @@ export default function Home() {
         loading.add(frame)
         const url = frameSrc(frame, phone)
         if (typeof createImageBitmap === "function") {
-          fetch(url)
+          fetch(url, { cache: "force-cache" })
             .then((response) => {
               if (!response.ok) throw new Error("frame")
               return response.blob()
             })
-            .then((blob) => createImageBitmap(blob))
+            .then((blob) =>
+              createImageBitmap(blob, { resizeWidth: decodeWidth, resizeQuality: "low" }).catch(() => createImageBitmap(blob))
+            )
             .then((bitmap) => store(frame, bitmap))
             .catch(() => {
               loading.delete(frame)
@@ -234,10 +240,17 @@ export default function Home() {
     }
 
     const prioritize = (center, direction) => {
+      const key = `${snap(center)}:${direction}`
+      if (key === planKey) {
+        pump()
+        return
+      }
+      planKey = key
       queue = []
       for (let jump = 0; jump <= ahead; jump += 1) enqueue(center + direction * jump * step)
+      for (let jump = 1; jump <= behind; jump += 1) enqueue(center - direction * jump * step)
       ROOM_FRAMES.forEach((room) => {
-        if (Math.abs(room - center) < step * 3) enqueue(room)
+        if (Math.abs(room - center) < step * 4) enqueue(room)
       })
       pump()
     }
@@ -353,6 +366,7 @@ export default function Home() {
   }, [])
 
   usePageTurn()
+  useCurvedReveal()
 
   return (
     <>
@@ -371,8 +385,8 @@ export default function Home() {
         </div>
       </section>
 
-      {pages.map((page) => (
-        <section className="turn-page" key={page.title} data-header="light">
+      {pages.map((page, index) => (
+        <section className={`turn-page${index === 4 ? " is-curve" : ""}`} key={page.title} data-header="light">
           <div className="turn-photo">
             <img src={page.image} alt={page.alt} data-parallax={page.photo} />
           </div>
@@ -385,6 +399,55 @@ export default function Home() {
       ))}
     </>
   )
+}
+
+function useCurvedReveal() {
+  useEffect(() => {
+    const curve = document.querySelector(".turn-page.is-curve")
+    const previous = curve?.previousElementSibling
+    if (!curve || !previous || reduced()) return undefined
+
+    let frame = 0
+    const place = () => {
+      const view = window.innerHeight || 1
+      const top = curve.getBoundingClientRect().top
+      const entering = top > 0 && top < view
+      if (!entering) {
+        curve.style.borderRadius = ""
+        previous.style.transform = ""
+        previous.style.zIndex = ""
+        curve.style.zIndex = ""
+        delete previous.dataset.pinShift
+        return
+      }
+      const shift = Number(previous.dataset.pinShift || 0)
+      const naturalTop = previous.getBoundingClientRect().top - shift
+      const nextShift = -naturalTop
+      previous.dataset.pinShift = String(nextShift)
+      previous.style.transform = `translateY(${nextShift}px)`
+      previous.style.zIndex = "1"
+      curve.style.zIndex = "2"
+      const open = 1 - top / view
+      const radius = 58 * (1 - open)
+      curve.style.borderRadius = `${radius}% ${radius}% 0 0`
+    }
+    const onScroll = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(place)
+    }
+    window.addEventListener("scroll", onScroll, { passive: true })
+    window.addEventListener("resize", onScroll)
+    place()
+    return () => {
+      cancelAnimationFrame(frame)
+      window.removeEventListener("scroll", onScroll)
+      window.removeEventListener("resize", onScroll)
+      curve.style.borderRadius = ""
+      previous.style.transform = ""
+      previous.style.zIndex = ""
+      curve.style.zIndex = ""
+    }
+  }, [])
 }
 
 function usePageTurn() {
@@ -404,10 +467,16 @@ function usePageTurn() {
       return { start: reel.offsetTop, end: reel.offsetTop + reel.offsetHeight - view }
     }
 
-    const insideReel = () => {
-      const stops = roomStops()
-      const last = stops[stops.length - 1] || 0
-      return window.scrollY + 2 < last
+    const insideReel = (direction) => {
+      const points = roomStops()
+      const last = points[points.length - 1] || 0
+      const y = window.scrollY
+      if (direction < 0) {
+        const nextPage = [...document.querySelectorAll("main section")].find((el) => !el.classList.contains("enter-reel"))
+        const limit = nextPage ? nextPage.offsetTop + 8 : last
+        return y > 24 && y <= Math.max(last + 24, limit)
+      }
+      return y + 2 < last
     }
 
     const roomStops = () => {
@@ -469,7 +538,7 @@ function usePageTurn() {
     }
 
     const go = (direction) => {
-      if (animating || insideReel()) return
+      if (animating || insideReel(direction)) return
       const points = stops()
       const y = window.scrollY
       if (direction > 0) {
@@ -486,12 +555,13 @@ function usePageTurn() {
 
     const onWheel = (event) => {
       if (blocked() || locked()) return
-      if (insideReel()) {
+      const wheelDirection = event.deltaY > 0 ? 1 : -1
+      if (insideReel(wheelDirection)) {
         if (Math.abs(event.deltaY) < 6) return
         event.preventDefault()
         if (animating || armed) return
         armed = true
-        goRoom(event.deltaY > 0 ? 1 : -1)
+        goRoom(wheelDirection)
         window.setTimeout(() => {
           armed = false
         }, 2850)
@@ -522,8 +592,9 @@ function usePageTurn() {
       if (event.target.closest(".bot-panel, .bot-stage, .menu")) return
       const delta = touchY - event.changedTouches[0].clientY
       if (Math.abs(delta) < 28) return
-      if (insideReel()) {
-        goRoom(delta > 0 ? 1 : -1)
+      const touchDirection = delta > 0 ? 1 : -1
+      if (insideReel(touchDirection)) {
+        goRoom(touchDirection)
         return
       }
       go(delta > 0 ? 1 : -1)
