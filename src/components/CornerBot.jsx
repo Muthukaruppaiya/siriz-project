@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { studio } from "../data/site"
 import { suggestedQuestions } from "../data/chatKnowledge"
 import { fetchAiReply } from "../lib/chatApi"
@@ -129,6 +130,109 @@ function IconClear() {
   )
 }
 
+function useBotMotion(rootRef) {
+  const spot = useRef({ x: 0, y: 0 })
+  const drag = useRef(null)
+  const dragged = useRef(false)
+  const [floating, setFloating] = useState(false)
+
+  useEffect(() => {
+    const root = rootRef.current
+    if (!root) return undefined
+    const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    let frame = 0
+    let last = window.scrollY
+    let speed = 0
+    let tilt = 0
+    const draw = () => {
+      frame = 0
+      const y = window.scrollY
+      const sway = calm ? 0 : Math.sin(y / 260) * 18
+      const bob = calm ? 0 : Math.cos(y / 380) * 14
+      const aim = calm ? 0 : Math.max(-16, Math.min(16, speed * 0.45))
+      tilt += (aim - tilt) * 0.22
+      speed *= 0.86
+      root.style.transform = `translate3d(${spot.current.x + sway}px, ${spot.current.y + bob}px, 0) rotate(${tilt.toFixed(2)}deg)`
+      if (Math.abs(speed) > 0.15 || Math.abs(tilt) > 0.2) frame = requestAnimationFrame(draw)
+    }
+    const onScroll = () => {
+      const y = window.scrollY
+      speed += y - last
+      last = y
+      if (!frame) frame = requestAnimationFrame(draw)
+    }
+    window.addEventListener("scroll", onScroll, { passive: true })
+    draw()
+    return () => {
+      window.removeEventListener("scroll", onScroll)
+      cancelAnimationFrame(frame)
+    }
+  }, [rootRef])
+
+  const clamp = (x, y) => {
+    const root = rootRef.current
+    const width = root?.offsetWidth || 150
+    const height = root?.offsetHeight || 190
+    return {
+      x: Math.min(10, Math.max(-(window.innerWidth - width - 8), x)),
+      y: Math.min(10, Math.max(-(window.innerHeight - height - 8), y)),
+    }
+  }
+
+  const paint = () => {
+    const root = rootRef.current
+    if (!root) return
+    const y = window.scrollY
+    const sway = Math.sin(y / 260) * 18
+    const bob = Math.cos(y / 380) * 14
+    root.style.transform = `translate3d(${spot.current.x + sway}px, ${spot.current.y + bob}px, 0) rotate(${Math.max(-12, Math.min(12, spot.current.x * 0.04))}deg)`
+  }
+
+  const onPointerDown = (event) => {
+    if (event.button != null && event.button !== 0) return
+    drag.current = {
+      id: event.pointerId,
+      sx: event.clientX,
+      sy: event.clientY,
+      ox: spot.current.x,
+      oy: spot.current.y,
+    }
+    dragged.current = false
+    setFloating(true)
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId)
+    } catch {
+      /* A pointer that is already gone should not stop the drag. */
+    }
+  }
+
+  const onPointerMove = (event) => {
+    const active = drag.current
+    if (!active || event.pointerId !== active.id) return
+    const dx = event.clientX - active.sx
+    const dy = event.clientY - active.sy
+    if (Math.hypot(dx, dy) > 8) dragged.current = true
+    spot.current = clamp(active.ox + dx, active.oy + dy)
+    paint()
+  }
+
+  const onPointerUp = (event) => {
+    if (!drag.current || event.pointerId !== drag.current.id) return
+    drag.current = null
+    setFloating(false)
+  }
+
+  const onClick = (event) => {
+    if (!dragged.current) return false
+    event.preventDefault()
+    event.stopPropagation()
+    dragged.current = false
+    return true
+  }
+
+  return { floating, onPointerDown, onPointerMove, onPointerUp, onClick }
+}
+
 export default function CornerBot() {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState("")
@@ -145,6 +249,8 @@ export default function CornerBot() {
     const start = storedLang()
     return [{ from: "bot", text: copy[start].greeting, lang: start }]
   })
+  const motionRef = useRef(null)
+  const motion = useBotMotion(motionRef)
   const listRef = useRef(null)
   const fieldRef = useRef(null)
   const recognitionRef = useRef(null)
@@ -177,6 +283,13 @@ export default function CornerBot() {
     if (!open || !list) return
     list.scrollTop = list.scrollHeight
   }, [open, messages, heard, typing])
+
+  useEffect(() => {
+    document.body.style.overflow = open ? "hidden" : ""
+    return () => {
+      document.body.style.overflow = ""
+    }
+  }, [open])
 
   useEffect(() => {
     if (!open || greeted.current) return
@@ -356,10 +469,11 @@ export default function CornerBot() {
   const showSuggestions = messages.length <= 2 && !typing
 
   return (
-    <div className={`corner-bot ${open ? "is-open" : ""} ${listening ? "is-listen" : ""} ${speaking || typing ? "is-talking" : ""}`}>
-      {open && (
+    <div ref={motionRef} className={`corner-bot ${open ? "is-open" : ""} ${listening ? "is-listen" : ""} ${speaking || typing ? "is-talking" : ""}`}>
+      <div className={`bot-float${motion.floating ? " is-on" : ""}`}>
+      {open && createPortal(
         <section
-          className="bot-panel"
+          className="bot-panel is-full"
           role="dialog"
           lang={lang === "en" ? "en" : "ta"}
           aria-label={pack.dialog}
@@ -483,7 +597,8 @@ export default function CornerBot() {
               <IconSend />
             </button>
           </form>
-        </section>
+        </section>,
+        document.body
       )}
 
       {prompt && !open && (
@@ -494,11 +609,19 @@ export default function CornerBot() {
         type="button"
         aria-expanded={open}
         aria-label={open ? pack.close : pack.open}
-        onClick={() => setOpen((value) => !value)}
+        onPointerDown={motion.onPointerDown}
+        onPointerMove={motion.onPointerMove}
+        onPointerUp={motion.onPointerUp}
+        onPointerCancel={motion.onPointerUp}
+        onClick={(event) => {
+          if (motion.onClick(event)) return
+          setOpen((value) => !value)
+        }}
       >
         <span className="bot-ring" />
         <Pip speaking={speaking || typing} listening={listening} waveTick={waveTick} />
       </button>
+      </div>
     </div>
   )
 }
