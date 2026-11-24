@@ -339,7 +339,568 @@ export default function Home() {
       </section>
 
       <PortfolioStage />
+      <WhyPage />
+      <CyclePage />
+      <RecognitionPage />
     </>
+  )
+}
+
+const WHY_LEFT = [
+  {
+    title: "The lowest price in the market",
+    body: "Best quality and Unique interior styles at justified prices.",
+    mark: <path d="M7 3h10v18l-5-4-5 4z" />,
+  },
+  {
+    title: "10 years of warranty",
+    body: "Warranty can be claimed for the wooden work from the dedicated customer login.",
+    mark: <><circle cx="12" cy="9" r="5.5" /><path d="M8.6 13.6 7 21l5-3 5 3-1.6-7.4" /></>,
+  },
+  {
+    title: "Customer-friendly experience",
+    body: "Personalized assistance and suggestions will be provided with the customer's requirements.",
+    mark: <><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7" /></>,
+  },
+  {
+    title: "45 days of guaranteed delivery",
+    body: "Our company ensures on-time delivery for each & every project.",
+    mark: <><path d="M2 6h11v10H2zM13 10h5l3 3v3h-8z" /><circle cx="7" cy="18" r="1.8" /><circle cx="17" cy="18" r="1.8" /></>,
+  },
+]
+
+const WHY_RIGHT = [
+  {
+    title: "Dedicated customer login portal",
+    body: "Shows your interior work progress, designs, and payment details just in one login.",
+    mark: <><rect x="4" y="4" width="16" height="16" rx="2" /><path d="m8.5 12 2.5 2.5 4.5-5" /></>,
+  },
+  {
+    title: "Innovation +",
+    body: "Professionals in Unique interior designs with innovative ideas.",
+    mark: <path d="m5 12.5 4.5 4.5L19 7" />,
+  },
+  {
+    title: "Space planning designs",
+    body: "Functional designs & ideas will be executed by our experts.",
+    mark: <><path d="M4 20 14 10" /><path d="M16 3v4M14 5h4M20 10v4M18 12h4M9 4v2" /></>,
+  },
+  {
+    title: "Post Installation services",
+    body: "Provides warranty with lifetime services",
+    mark: <path d="M8 4h8v6a4 4 0 0 1-8 0zM8 6H5v2a3 3 0 0 0 3 3M16 6h3v2a3 3 0 0 1-3 3M12 14v4M8 20h8" />,
+  },
+]
+
+const WHY_GEMS = [
+  { src: "/why/why-1.webp", place: "t" },
+  { src: "/why/why-2.webp", place: "l" },
+  { src: "/why/why-3.webp", place: "r" },
+  { src: "/why/why-4.webp", place: "b" },
+]
+
+function clamp(value, min = 0, max = 1) {
+  return Math.min(max, Math.max(min, value))
+}
+
+function rise(start, end, value) {
+  const t = clamp((value - start) / (end - start))
+  return t * t * (3 - 2 * t)
+}
+
+function WhyPage() {
+  const rootRef = useRef(null)
+  const pinRef = useRef(null)
+  const stageRef = useRef(null)
+  const lineRef = useRef(null)
+  const letterRef = useRef(null)
+  const maskRef = useRef(null)
+  const statsRef = useRef(null)
+  const hintRef = useRef(null)
+  const statementRef = useRef(null)
+  const glowRef = useRef(null)
+  const sheetRef = useRef(null)
+
+  useEffect(() => {
+    const root = rootRef.current
+    const stage = stageRef.current
+    const line = lineRef.current
+    const letter = letterRef.current
+    if (!root || !stage || !line || !letter) return undefined
+    const still = reduced()
+    if (still) root.classList.add("is-still")
+    const metrics = { dx: 0, dy: 0, smax: 6 }
+    let frame = 0
+
+    const measure = () => {
+      const view = window.innerHeight || 1
+      if (pinRef.current) pinRef.current.style.height = still ? `${view}px` : `${view * 3.4}px`
+      line.style.transform = "none"
+      line.style.fontSize = "100px"
+      const box = line.getBoundingClientRect()
+      const size = 100 * Math.min((stage.clientWidth * 0.86) / box.width, (stage.clientHeight * 0.5) / box.height)
+      line.style.fontSize = `${size}px`
+      const stageBox = stage.getBoundingClientRect()
+      const lineBox = line.getBoundingClientRect()
+      const letterBox = letter.getBoundingClientRect()
+      const tracking = parseFloat(getComputedStyle(letter).letterSpacing) || 0
+      const originX = letterBox.left - lineBox.left + (letterBox.width - tracking) / 2
+      const originY = letterBox.top - lineBox.top + letterBox.height / 2
+      metrics.dx = stage.clientWidth / 2 - (lineBox.left - stageBox.left + originX)
+      metrics.dy = stage.clientHeight / 2 - (lineBox.top - stageBox.top + originY)
+      metrics.smax = Math.max(stage.clientWidth / (size * 0.11), stage.clientHeight / (size * 0.45)) * 1.1
+      line.style.transformOrigin = `${originX}px ${originY}px`
+    }
+
+    const draw = () => {
+      const view = stage.clientHeight || window.innerHeight || 1
+      const local = window.scrollY - root.offsetTop
+      if (still) {
+        if (statementRef.current) statementRef.current.style.opacity = "1"
+        return
+      }
+      const t = clamp(local / (2 * view))
+      const scale = Math.exp(Math.log(metrics.smax) * Math.pow(t, 1.6))
+      const weight = rise(0, 0.9, t)
+      const tilt = -3 * Math.sin(Math.PI * clamp(t / 0.6))
+      line.style.transform = `translate(${metrics.dx * weight}px, ${metrics.dy * weight}px) rotate(${tilt}deg) scale(${scale})`
+      if (maskRef.current) maskRef.current.style.opacity = String(1 - rise(0.84, 0.97, t))
+      const fade = rise(0, 0.14, t)
+      if (statsRef.current) {
+        statsRef.current.style.opacity = String(1 - fade)
+        statsRef.current.style.transform = `translateY(${fade * 34}px)`
+      }
+      if (hintRef.current) hintRef.current.style.opacity = String(1 - rise(0, 0.05, t))
+      const shown = rise(1.7 * view, 2.25 * view, local)
+      if (statementRef.current) {
+        statementRef.current.style.opacity = String(shown)
+        statementRef.current.style.transform = `translateY(${(1 - shown) * 26}px)`
+      }
+      if (glowRef.current) glowRef.current.style.transform = `scale(${1 + 0.14 * t}) translate3d(${-3 * t}%, 0, 0)`
+    }
+
+    const onScroll = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(draw)
+    }
+
+    const items = [...root.querySelectorAll(".why-reveal")]
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add("is-in")
+          observer.unobserve(entry.target)
+        }
+      })
+    }, { threshold: 0.12 })
+    items.forEach((item) => observer.observe(item))
+
+    const relayout = () => {
+      measure()
+      draw()
+    }
+    measure()
+    draw()
+    const ready = document.fonts?.ready
+    if (ready && ready.then) ready.then(relayout)
+    window.addEventListener("scroll", onScroll, { passive: true })
+    window.addEventListener("resize", relayout)
+    return () => {
+      cancelAnimationFrame(frame)
+      observer.disconnect()
+      window.removeEventListener("scroll", onScroll)
+      window.removeEventListener("resize", relayout)
+    }
+  }, [])
+
+  const points = (list, side) => (
+    <div className={side === "right" ? "why-col is-right" : "why-col"}>
+      {list.map((item, index) => (
+        <article className="why-feat why-reveal" style={{ "--d": `${index * 0.1}s` }} key={item.title}>
+          <span className="why-ic" aria-hidden="true">
+            <svg viewBox="0 0 24 24">{item.mark}</svg>
+          </span>
+          <div>
+            <h3>{item.title}</h3>
+            <p>{item.body}</p>
+          </div>
+        </article>
+      ))}
+    </div>
+  )
+
+  return (
+    <section className="why-story" ref={rootRef} aria-label="Why Siriz">
+      <div className="why-pin" ref={pinRef}>
+        <div className="why-stage" ref={stageRef}>
+          <div className="why-glow" ref={glowRef} />
+          <div className="why-shade" />
+          <div className="why-mask" ref={maskRef}>
+            <h2 className="why-line" ref={lineRef} aria-label="Why Siriz Interiors">
+              <span>Why S<span ref={letterRef}>I</span>riz</span>
+              <span>Interiors</span>
+            </h2>
+          </div>
+          <div className="why-stats" ref={statsRef}>
+            <p><b>10 yrs</b><span>Warranty on wood work</span></p>
+            <p><b>45 days</b><span>Guaranteed delivery</span></p>
+            <p><b>Lifetime</b><span>Post-installation service</span></p>
+            <p><b>1 login</b><span>Progress, designs, payments</span></p>
+          </div>
+          <p className="why-cue" ref={hintRef}>Scroll</p>
+          <div className="why-statement" ref={statementRef}>
+            <small>Siriz Interiors</small>
+            <i />
+            <h2>We design your dream home, <em>the excellence of interior</em></h2>
+            <p>A full range of planning and turnkey fit-out services in the interior industry.</p>
+          </div>
+        </div>
+      </div>
+      <div className="why-sheet" ref={sheetRef}>
+        <div className="why-wrap">
+          <h2 className="why-heading why-reveal">Why <span>Siriz Interiors</span></h2>
+          <div className="why-lede why-reveal">
+            <q>We Design your Dream Home, the excellence of interior</q>
+            <p>Siriz Interiors provides a full range of planning and turnkey fit-out services in the interior industry.</p>
+          </div>
+          <div className="why-cols">
+            {points(WHY_LEFT, "left")}
+            <div className="why-gems" aria-hidden="true">
+              {WHY_GEMS.map((gem, index) => (
+                <img className={`why-gem is-${gem.place} why-reveal`} style={{ "--d": `${0.1 + index * 0.12}s` }} key={gem.src} src={gem.src} alt="" />
+              ))}
+            </div>
+            {points(WHY_RIGHT, "right")}
+          </div>
+          <p className="why-foot why-reveal">Siriz Interiors</p>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+const CYCLE = [
+  {
+    n: "1",
+    color: "#8d9094",
+    title: "Meet a designer",
+    body: "Speak to our professional designer to plan & design your home.",
+  },
+  {
+    n: "2",
+    color: "#3cb54a",
+    title: "Let's start designing",
+    body: "Your Dream Home will be designed with the discussion and our architect's suggestion.",
+  },
+  {
+    n: "3",
+    color: "#7b4ea3",
+    title: "View designs in 3D",
+    body: "Discussed designs will be projected for your view.",
+  },
+  {
+    n: "4",
+    color: "#e6b325",
+    title: "Plan",
+    body: "Scheduling the production & execution process of interior work.",
+  },
+  {
+    n: "5",
+    color: "#e23b32",
+    title: "Production begins at our factory",
+    body: "Will commence the work of finalised materials.",
+  },
+  {
+    n: "6",
+    color: "#f47b20",
+    title: "Move-in",
+    body: "No more waiting to feel the comfort of your dream Home. Let's Move in.",
+  },
+]
+
+const CYCLE_SPOTS = [
+  { x: "50%", y: "10%" },
+  { x: "84%", y: "30%" },
+  { x: "84%", y: "70%" },
+  { x: "50%", y: "90%" },
+  { x: "16%", y: "70%" },
+  { x: "16%", y: "30%" },
+]
+
+function CyclePage() {
+  const rootRef = useRef(null)
+  const [active, setActive] = useState(-1)
+
+  useEffect(() => {
+    const root = rootRef.current
+    if (!root) return undefined
+    const sticky = root.querySelector(".cycle-sticky")
+    let frame = 0
+    const place = () => {
+      const view = window.innerHeight || 1
+      root.style.height = `${view * (CYCLE.length + 1)}px`
+      if (sticky) sticky.style.height = `${view}px`
+      const span = Math.max(1, root.offsetHeight - view)
+      const y = window.scrollY
+      const progress = Math.min(1, Math.max(0, (y - root.offsetTop) / span))
+      const step = progress * CYCLE.length
+      const down = y >= root.dataset.cycleY
+      root.dataset.cycleY = String(y)
+      const next = down
+        ? (step < 0.08 ? -1 : Math.min(CYCLE.length - 1, Math.floor(step + 0.92) - 1))
+        : Math.min(CYCLE.length - 1, Math.floor(step + 0.08) - 1)
+      setActive((current) => (current === next ? current : next))
+    }
+    const onScroll = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(place)
+    }
+    place()
+    window.addEventListener("scroll", onScroll, { passive: true })
+    window.addEventListener("resize", onScroll)
+    return () => {
+      cancelAnimationFrame(frame)
+      window.removeEventListener("scroll", onScroll)
+      window.removeEventListener("resize", onScroll)
+    }
+  }, [])
+
+  const open = (index) => {
+    const root = rootRef.current
+    if (!root) return
+    const view = window.innerHeight || 1
+    const span = Math.max(1, root.offsetHeight - view)
+    window.scrollTo({ top: root.offsetTop + ((index + 1) / CYCLE.length) * span, behavior: "smooth" })
+  }
+
+  return (
+    <section className="cycle-page" ref={rootRef} aria-label="Work process">
+      <div className="cycle-sticky">
+        <h2 className="cycle-title">Work Process</h2>
+        <div className={active >= 0 ? "cycle-ring is-open" : "cycle-ring"}>
+          <div className="cycle-veil" aria-hidden="true" />
+          {CYCLE.map((item, index) => (
+            <button
+              key={item.n}
+              type="button"
+              className={index === active ? "cycle-node is-pop" : "cycle-node"}
+              style={{ "--x": CYCLE_SPOTS[index].x, "--y": CYCLE_SPOTS[index].y, "--ink": item.color }}
+              onClick={() => open(index)}
+              aria-pressed={index === active}
+            >
+              <b>{item.n}</b>
+              <strong>{item.title}</strong>
+              <p>{item.body}</p>
+            </button>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+const AWARDS = [
+  {
+    color: "#c8624a",
+    tag: "Award night",
+    title: "On stage, 2023",
+    summary: "The Great Indian Startup Awards",
+    code: "GIA · 2023",
+    image: "/awards/award-1.jpg",
+    facts: [
+      ["Event", "The Great Indian Entrepreneurship, Business, Design & Startup Awards 2023"],
+      ["Presented by", "Beginup Research Intelligence Pvt Ltd, Bengaluru"],
+      ["Moment", "Siriz Interiors receiving its recognition on stage"],
+    ],
+  },
+  {
+    color: "#d9a441",
+    tag: "Trophy",
+    title: "The Great Indian trophy",
+    summary: "Siriz Interiors Private Limited",
+    code: "GIA · 2023",
+    image: "/awards/award-2.jpg",
+    facts: [
+      ["Awarded to", "Siriz Interiors Private Limited"],
+      ["Event", "The Great Indian Entrepreneurship, Business, Design & Startup Awards 2023"],
+      ["Presented by", "Beginup Research Intelligence Pvt Ltd"],
+    ],
+  },
+  {
+    color: "#5a79b0",
+    tag: "Certificate · Goa",
+    title: "Trendsetter Interior Design Awards",
+    summary: "Excellent & Creative Interior Design Firm of the Year 2023, Tamil Nadu",
+    code: "GOA · 2023",
+    image: "/awards/award-3.jpg",
+    facts: [
+      ["Category", "Residential & Commercial Projects"],
+      ["Presented to", "Siriz Interiors Private Limited · Mohamed Rizwan"],
+      ["When & where", "25 Nov 2023 · Hyatt Centric Candolim, Goa"],
+      ["Signed", "Mr. Anand Gopal Naik, Managing Director"],
+    ],
+  },
+  {
+    color: "#8a5a8f",
+    tag: "Certificate · Bengaluru",
+    title: "Great Indian Design & Start-up Awards",
+    summary: "Outstanding & Rising Interior Design Firm of the Year 2023, Tamil Nadu",
+    code: "BLR · 2023",
+    image: "/awards/award-4.jpg",
+    facts: [
+      ["Category", "Residential Projects"],
+      ["Presented to", "Siriz Interiors Private Limited · Mohamed Rizwan"],
+      ["When & where", "30 Oct 2023 · The Taj West End, Bengaluru"],
+      ["Edition", "National Edition 2023"],
+    ],
+  },
+]
+
+function RecognitionPage() {
+  const railRef = useRef(null)
+  const [flipped, setFlipped] = useState(() => AWARDS.map(() => false))
+
+  useEffect(() => {
+    const rail = railRef.current
+    if (!rail || reduced()) return undefined
+    const items = [...rail.querySelectorAll(".award-swing")].map((el, index) => ({
+      el,
+      slot: el.parentElement,
+      a: 0,
+      v: 0,
+      index,
+    }))
+    let lastX = null
+    let last = 0
+    let visible = true
+    let frame = 0
+
+    const nudge = (event) => {
+      const box = event.currentTarget.getBoundingClientRect()
+      const item = items.find((entry) => entry.slot === event.currentTarget)
+      if (!item) return
+      item.v += (box.left + box.width / 2 < event.clientX ? 1 : -1) * 0.35
+    }
+
+    const onMove = (event) => {
+      const rect = rail.getBoundingClientRect()
+      const dx = lastX == null ? 0 : event.clientX - lastX
+      lastX = event.clientX
+      if (event.clientY - rect.top > 230 && !event.target.closest(".award-card")) return
+      const softened = event.target.closest(".award-card") ? 0.4 : 1
+      items.forEach((item) => {
+        const box = item.slot.getBoundingClientRect()
+        const center = box.left + box.width / 2
+        const reach = Math.exp(-((((event.clientX - center) / 130) ** 2)))
+        item.v += dx * reach * 0.02 * softened
+      })
+    }
+
+    const step = (now) => {
+      if (!visible) return
+      const dt = Math.min((now - last) / 1000 || 0.016, 0.04)
+      last = now
+      items.forEach((item) => {
+        item.v += (-18 * item.a - 1.7 * item.v) * dt
+        item.a += item.v * dt
+        item.a = Math.max(-0.55, Math.min(0.55, item.a))
+        item.el.style.transform = `rotate(${(item.a * 57.3).toFixed(2)}deg)`
+      })
+      frame = requestAnimationFrame(step)
+    }
+
+    const onLeave = () => {
+      lastX = null
+    }
+    const observer = new IntersectionObserver((entries) => {
+      visible = entries[0].isIntersecting
+      if (visible) {
+        last = 0
+        frame = requestAnimationFrame(step)
+      }
+    })
+    observer.observe(rail)
+    rail.addEventListener("pointermove", onMove)
+    rail.addEventListener("pointerleave", onLeave)
+    items.forEach((item) => item.slot.addEventListener("pointerenter", nudge))
+    const timers = items.map((item, index) => window.setTimeout(() => {
+      item.v += (index % 2 ? -1 : 1) * 1.3
+    }, 500 + index * 160))
+    frame = requestAnimationFrame(step)
+
+    return () => {
+      visible = false
+      cancelAnimationFrame(frame)
+      observer.disconnect()
+      rail.removeEventListener("pointermove", onMove)
+      rail.removeEventListener("pointerleave", onLeave)
+      items.forEach((item) => item.slot.removeEventListener("pointerenter", nudge))
+      timers.forEach((id) => window.clearTimeout(id))
+    }
+  }, [])
+
+  const turn = (index) => {
+    setFlipped((current) => current.map((open, item) => (item === index ? !open : open)))
+  }
+
+  return (
+    <section className="award-page" aria-label="Recognition">
+      <p className="award-kicker">Recognition · Four honours</p>
+      <h2 className="award-title">Recognised for the rooms we build.</h2>
+      <div className="award-rail" ref={railRef}>
+        <div className="award-track">
+        {[0, 1].map((copy) => (
+          <div className="award-set" key={copy} aria-hidden={copy === 1 || undefined}>
+          {AWARDS.map((award, index) => (
+          <div className="award-slot" key={`${copy}-${award.tag}`} style={{ "--c": award.color }}>
+            <i className="award-ring" />
+            <div className="award-swing">
+              <div className="award-strap" />
+              <div className="award-clip" />
+              <button
+                type="button"
+                className={flipped[index] ? "award-card is-flipped" : "award-card"}
+                aria-pressed={flipped[index]}
+                tabIndex={copy === 1 ? -1 : 0}
+                aria-label={`Turn badge over: ${award.title}`}
+                onClick={() => turn(index)}
+              >
+                <span className="award-in">
+                  <span className="award-face award-front">
+                    <span className="award-band"><span>{award.tag}</span><span>2023</span></span>
+                    <span className="award-pic"><img src={award.image} alt="" /></span>
+                    <span className="award-copy">
+                      <strong>{award.title}</strong>
+                      <em>{award.summary}</em>
+                    </span>
+                    <span className="award-foot">Siriz Interiors · {award.code}</span>
+                  </span>
+                  <span className="award-face award-back">
+                    <span className="award-band"><span>Details</span><span>2023</span></span>
+                    <span className="award-body">
+                      <strong>{award.title}</strong>
+                      <dl>
+                        {award.facts.map(([label, value]) => (
+                          <div key={label}>
+                            <dt>{label}</dt>
+                            <dd>{value}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </span>
+                    <span className="award-foot">Click to turn back</span>
+                  </span>
+                </span>
+              </button>
+            </div>
+          </div>
+          ))}
+          </div>
+        ))}
+        </div>
+      </div>
+      <p className="award-hint">The badges travel along the rail. Click a badge to turn it over.</p>
+    </section>
   )
 }
 
@@ -694,13 +1255,15 @@ function usePageTurn(transportRef) {
       return [...new Set(points.map((point) => Math.round(point)))].sort((a, b) => a - b)
     }
 
-    const glide = (top, duration = 1080) => {
+    const glide = (top, duration = 1080, smooth = false) => {
       const start = window.scrollY
       const change = top - start
       if (Math.abs(change) < 2) return false
       animating = true
       const began = performance.now()
-      const ease = duration > 1400 ? (t) => t : duration < 700 ? (t) => 1 - (1 - t) ** 2 : (t) => 1 - (1 - t) ** 4
+      const ease = smooth
+        ? (t) => (t < 0.5 ? 4 * t * t * t : 1 - ((-2 * t + 2) ** 3) / 2)
+        : duration > 1400 ? (t) => t : duration < 700 ? (t) => 1 - (1 - t) ** 2 : (t) => 1 - (1 - t) ** 4
       const step = (now) => {
         const progress = Math.min(1, (now - began) / duration)
         window.scrollTo(0, start + change * ease(progress))
@@ -758,9 +1321,17 @@ function usePageTurn(transportRef) {
       if (direction > 0 && folio && folio.dataset.folioReady !== "1" && window.scrollY >= folio.offsetTop - 24) return
       const points = stops()
       const y = window.scrollY
+      const cycle = document.querySelector(".cycle-page")
+      const view = window.innerHeight || 1
+      const cycleStart = cycle ? cycle.offsetTop - 4 : -1
+      const cycleEnd = cycle ? cycle.offsetTop + Math.max(0, cycle.offsetHeight - view) + 4 : -1
+      const cycleGlide = (target) => {
+        const inside = y >= cycleStart && y <= cycleEnd && target >= cycleStart && target <= cycleEnd
+        return glide(target, inside ? 1320 : 1080, inside)
+      }
       if (direction > 0) {
         const next = points.find((point) => point > y + 16)
-        if (next != null) glide(next)
+        if (next != null) cycleGlide(next)
         return
       }
       const prev = [...points].reverse().find((point) => point < y - 16)
@@ -770,15 +1341,32 @@ function usePageTurn(transportRef) {
         goRoom(-1)
         return
       }
-      glide(prev)
+      cycleGlide(prev)
     }
 
     const blocked = () => document.querySelector(".menu.is-open")
     const locked = () => document.documentElement.classList.contains("is-scroll-locked")
 
+    const whyPin = () => {
+      const why = document.querySelector(".why-story")
+      const pin = why?.querySelector(".why-pin")
+      if (!why || !pin) return null
+      const view = window.innerHeight || 1
+      return { start: why.offsetTop, end: why.offsetTop + pin.offsetHeight - view }
+    }
+
+    const scrubWhy = (direction) => {
+      const range = whyPin()
+      if (!range) return false
+      const y = window.scrollY
+      if (direction > 0) return y >= range.start - 2 && y < range.end - 16
+      return y > range.start + 16 && y <= range.end + 16
+    }
+
     const onWheel = (event) => {
       if (blocked() || locked()) return
       const wheelDirection = event.deltaY > 0 ? 1 : -1
+      if (scrubWhy(wheelDirection)) return
       if (insideReel(wheelDirection)) {
         event.preventDefault()
         if (animating || armed) return
@@ -802,19 +1390,37 @@ function usePageTurn(transportRef) {
       }, 1120)
     }
 
+    let touchScrub = false
+
     const onTouchStart = (event) => {
       touchY = event.touches[0].clientY
+      touchScrub = false
     }
 
     const onTouchMove = (event) => {
       if (blocked() || locked()) return
       if (event.target.closest(".bot-panel, .bot-stage, .menu")) return
+      const y = event.touches[0].clientY
+      const direction = touchY - y >= 0 ? 1 : -1
+      if (scrubWhy(direction)) {
+        if (event.cancelable) event.preventDefault()
+        const range = whyPin()
+        const next = Math.min(range.end, Math.max(range.start, window.scrollY + (touchY - y)))
+        touchY = y
+        touchScrub = true
+        window.scrollTo(0, next)
+        return
+      }
       if (event.cancelable) event.preventDefault()
     }
 
     const onTouchEnd = (event) => {
       if (blocked()) return
       if (event.target.closest(".bot-panel, .bot-stage, .menu")) return
+      if (touchScrub) {
+        touchScrub = false
+        return
+      }
       const delta = touchY - event.changedTouches[0].clientY
       if (Math.abs(delta) < 28) return
       const touchDirection = delta > 0 ? 1 : -1
