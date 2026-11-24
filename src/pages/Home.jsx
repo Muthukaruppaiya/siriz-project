@@ -227,6 +227,16 @@ export default function Home() {
         if (video.currentTime > 0.08) video.currentTime = 0
         showForward()
       },
+      parkEnd() {
+        playToken += 1
+        video.pause()
+        back.pause()
+        video.dataset.playing = ""
+        back.dataset.playing = ""
+        const end = ROOM_TIMES[ROOM_TIMES.length - 1]
+        if (Math.abs(video.currentTime - end) > 0.08) video.currentTime = end
+        showForward()
+      },
     }
 
     const tick = () => {
@@ -247,7 +257,7 @@ export default function Home() {
         pinMode = "end"
       } else place(rect, view)
       const visible = rect.bottom > -40 && rect.top < view + 40
-      const held = settled && !playing && room > 0
+      const held = settled && !playing
       video.classList.toggle("is-held", held)
       back.classList.toggle("is-held", held)
       const line = lineRef.current
@@ -313,14 +323,17 @@ export default function Home() {
         <div className="enter-reel-pin" ref={pinRef}>
           <video ref={videoRef} className="enter-film" src="/walk.mp4" poster="/walk-mobile/frame-001.jpg" muted playsInline preload="auto" />
           <video ref={backRef} className="enter-film is-back" src="/walk-back.mp4" muted playsInline preload="metadata" />
-          <h1 className="enter-name" ref={nameRef} aria-label="Siriz Interiors">
-            <span className="rise-mask">
-              <span>Siriz</span>
-            </span>
-            <span className="rise-mask">
-              <span>Interiors</span>
-            </span>
-          </h1>
+          <div className="enter-name" ref={nameRef}>
+            <h1 aria-label="Siriz Interiors">
+              <span className="rise-mask">
+                <span>Siriz</span>
+              </span>
+              <span className="rise-mask">
+                <span>Interiors</span>
+              </span>
+            </h1>
+            <p className="enter-note">Welcome to Siriz Interiors</p>
+          </div>
           <div className="room-copy" ref={lineRef} />
         </div>
       </section>
@@ -718,8 +731,8 @@ function usePageTurn(transportRef) {
       const last = points[points.length - 1]
       if (direction < 0 && y > last + 24) {
         animating = true
-        transportRef.current?.holdDoor?.()
-        const moved = glide(points[0], 1080)
+        transportRef.current?.parkEnd?.()
+        const moved = glide(last, 1080)
         if (!moved) {
           animating = false
           holdWheel(380)
@@ -748,10 +761,16 @@ function usePageTurn(transportRef) {
       if (direction > 0) {
         const next = points.find((point) => point > y + 16)
         if (next != null) glide(next)
-      } else {
-        const prev = [...points].reverse().find((point) => point < y - 16)
-        if (prev != null) glide(prev)
+        return
       }
+      const prev = [...points].reverse().find((point) => point < y - 16)
+      if (prev == null) return
+      const lastRoom = roomStops().at(-1) || 0
+      if (y > lastRoom + 24 && prev <= lastRoom + 24) {
+        goRoom(-1)
+        return
+      }
+      glide(prev)
     }
 
     const blocked = () => document.querySelector(".menu.is-open")

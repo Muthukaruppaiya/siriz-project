@@ -10,6 +10,8 @@ const copy = {
   ta: {
     name: "பிப்",
     role: "உள்துறை உதவியாளர்",
+    hello: "எப்படி உதவலாம்?",
+    more: "மேலும்",
     greeting: "வணக்கம், நான் பிப் — உங்கள் உள்துறை வடிவமைப்பு உதவியாளர். சேவைகள், பாணிகள், அல்லது ஆலோசனை பற்றி கேளுங்கள்.",
     nudge: "உதவி வேண்டுமா?",
     dialog: "உள்துறை உதவியாளருடன் அரட்டை",
@@ -43,6 +45,8 @@ const copy = {
   en: {
     name: "Pip",
     role: "Interior Design Assistant",
+    hello: "How can I help you?",
+    more: "More",
     greeting: "Hello, I'm Pip — your Interior Design Assistant. Ask about services, styles, materials, budget planning, or book a consultation.",
     nudge: "May I help?",
     dialog: "Chat with the Interior Design Assistant",
@@ -100,7 +104,23 @@ function IconMic() {
 function IconSend() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M4 12h14M13 6l6 6-6 6" />
+      <path d="M5 12h12M13 6l6 6-6 6" />
+    </svg>
+  )
+}
+
+function IconPlus() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  )
+}
+
+function IconChevron() {
+  return (
+    <svg className="glass-chevron" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M9 6l6 6-6 6" />
     </svg>
   )
 }
@@ -139,34 +159,7 @@ function useBotMotion(rootRef) {
   useEffect(() => {
     const root = rootRef.current
     if (!root) return undefined
-    const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    let frame = 0
-    let last = window.scrollY
-    let speed = 0
-    let tilt = 0
-    const draw = () => {
-      frame = 0
-      const y = window.scrollY
-      const sway = calm ? 0 : Math.sin(y / 260) * 18
-      const bob = calm ? 0 : Math.cos(y / 380) * 14
-      const aim = calm ? 0 : Math.max(-16, Math.min(16, speed * 0.45))
-      tilt += (aim - tilt) * 0.22
-      speed *= 0.86
-      root.style.transform = `translate3d(${spot.current.x + sway}px, ${spot.current.y + bob}px, 0) rotate(${tilt.toFixed(2)}deg)`
-      if (Math.abs(speed) > 0.15 || Math.abs(tilt) > 0.2) frame = requestAnimationFrame(draw)
-    }
-    const onScroll = () => {
-      const y = window.scrollY
-      speed += y - last
-      last = y
-      if (!frame) frame = requestAnimationFrame(draw)
-    }
-    window.addEventListener("scroll", onScroll, { passive: true })
-    draw()
-    return () => {
-      window.removeEventListener("scroll", onScroll)
-      cancelAnimationFrame(frame)
-    }
+    root.style.transform = `translate3d(${spot.current.x}px, ${spot.current.y}px, 0)`
   }, [rootRef])
 
   const clamp = (x, y) => {
@@ -182,10 +175,7 @@ function useBotMotion(rootRef) {
   const paint = () => {
     const root = rootRef.current
     if (!root) return
-    const y = window.scrollY
-    const sway = Math.sin(y / 260) * 18
-    const bob = Math.cos(y / 380) * 14
-    root.style.transform = `translate3d(${spot.current.x + sway}px, ${spot.current.y + bob}px, 0) rotate(${Math.max(-12, Math.min(12, spot.current.x * 0.04))}deg)`
+    root.style.transform = `translate3d(${spot.current.x}px, ${spot.current.y}px, 0)`
   }
 
   const onPointerDown = (event) => {
@@ -244,6 +234,7 @@ export default function CornerBot() {
   const [busy, setBusy] = useState(false)
   const [lang, setLang] = useState(storedLang)
   const [prompt, setPrompt] = useState(false)
+  const [more, setMore] = useState(false)
   const [waveTick, setWaveTick] = useState(0)
   const [messages, setMessages] = useState(() => {
     const start = storedLang()
@@ -481,79 +472,87 @@ export default function CornerBot() {
           onTouchMove={hold}
         >
           <header className="bot-panel-bar">
-            <div className="bot-id">
-              <span className="bot-avatar" aria-hidden="true" />
-              <div>
-                <p>{pack.name}</p>
-                <span className="bot-status">
-                  <i />
-                  {status}
-                </span>
-              </div>
-            </div>
+            <p className="bot-hello">{pack.hello}</p>
             <div className="bot-tools">
-              <button type="button" className="bot-lang" onClick={switchLang} aria-label={pack.switchLabel}>
-                {pack.switchTo}
+              <button type="button" className="bot-icon" aria-pressed={muted} aria-label={muted ? pack.muteOn : pack.muteOff} onClick={toggleMute}>
+                <IconSound off={muted} />
               </button>
               <button type="button" className="bot-icon" aria-label={pack.clearLabel} onClick={clearChat}>
                 <IconClear />
-              </button>
-              <button type="button" className="bot-icon" aria-pressed={muted} aria-label={muted ? pack.muteOn : pack.muteOff} onClick={toggleMute}>
-                <IconSound off={muted} />
               </button>
               <button type="button" className="bot-icon" onClick={() => setOpen(false)} aria-label={pack.close}>
                 <IconClose />
               </button>
             </div>
           </header>
-          <div className="bot-log" ref={listRef}>
-            {messages.map((message, index) => (
-              <div className={`bot-row bot-row-${message.from}`} key={`${message.from}-${index}`}>
-                {message.from === "bot" && <span className="bot-avatar" aria-hidden="true" />}
-                <div className={`bot-line bot-line-${message.from}`}>
-                  <p lang={message.lang === "en" ? "en" : "ta"}>{message.text}</p>
-                  {message.href && (
-                    <a href={message.href} target={message.href.startsWith("http") ? "_blank" : undefined} rel="noreferrer">
-                      {message.label}
-                    </a>
-                  )}
-                  {message.from === "bot" && (
-                    <button type="button" className="bot-hear" aria-label={pack.hearLabel} onClick={() => speak(message.text, message.lang)}>
-                      <IconSound />
-                      {pack.hear}
-                    </button>
-                  )}
+          <p className="bot-status"><i />{status}</p>
+          {!showSuggestions && (
+            <div className="bot-log" ref={listRef}>
+              {messages.map((message, index) => (
+                <div className={`bot-row bot-row-${message.from}`} key={`${message.from}-${index}`}>
+                  <div className={`bot-line bot-line-${message.from}`}>
+                    <p lang={message.lang === "en" ? "en" : "ta"}>{message.text}</p>
+                    {message.href && (
+                      <a href={message.href} target={message.href.startsWith("http") ? "_blank" : undefined} rel="noreferrer">
+                        {message.label}
+                      </a>
+                    )}
+                    {message.from === "bot" && (
+                      <button type="button" className="bot-hear" aria-label={pack.hearLabel} onClick={() => speak(message.text, message.lang)}>
+                        <IconSound />
+                        {pack.hear}
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
-            {typing && (
-              <div className="bot-row bot-row-bot">
-                <span className="bot-avatar" aria-hidden="true" />
-                <div className="bot-line bot-line-bot bot-typing" aria-label={pack.typing}>
-                  <span />
-                  <span />
-                  <span />
+              ))}
+              {typing && (
+                <div className="bot-row bot-row-bot">
+                  <div className="bot-line bot-line-bot bot-typing" aria-label={pack.typing}>
+                    <span />
+                    <span />
+                    <span />
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
+          {showSuggestions && <div ref={listRef} />}
           {showSuggestions && (
             <div className="bot-chips">
               {suggestions.map((chip) => (
-                <button key={chip} type="button" disabled={busy} onClick={() => send(chip)}>
-                  {chip}
+                <button key={chip} className="glass-row" type="button" disabled={busy} onClick={() => send(chip)}>
+                  <span className="glass-ico" aria-hidden="true"><IconPlus /></span>
+                  <span>{chip}</span>
+                  <IconChevron />
                 </button>
               ))}
             </div>
           )}
-          <div className="bot-actions">
-            <a className="bot-action" href={studio.whatsapp} target="_blank" rel="noreferrer" aria-label={pack.whatsappLabel}>
-              {pack.whatsapp}
-            </a>
-            <a className="bot-action" href={studio.phoneHref}>
-              {studio.phone}
-            </a>
-          </div>
+          {more && (
+            <div className="bot-more">
+              <button className="glass-row" type="button" aria-pressed={listening} onClick={toggleMic}>
+                <span className="glass-ico" aria-hidden="true"><IconMic /></span>
+                <span>{listening ? pack.micOn : pack.micOff}</span>
+                <IconChevron />
+              </button>
+              <a className="glass-row" href={studio.whatsapp} target="_blank" rel="noreferrer">
+                <span className="glass-ico" aria-hidden="true"><IconSend /></span>
+                <span>{pack.whatsapp}</span>
+                <IconChevron />
+              </a>
+              <a className="glass-row" href={studio.phoneHref}>
+                <span className="glass-ico" aria-hidden="true"><IconMic /></span>
+                <span>{studio.phone}</span>
+                <IconChevron />
+              </a>
+              <button className="glass-row" type="button" onClick={switchLang} aria-label={pack.switchLabel}>
+                <span className="glass-ico" aria-hidden="true">{pack.switchTo}</span>
+                <span>{pack.switchLabel}</span>
+                <IconChevron />
+              </button>
+            </div>
+          )}
           {listening && (
             <div className="bot-wave" aria-hidden="true">
               <span />
@@ -571,13 +570,13 @@ export default function CornerBot() {
             }}
           >
             <button
-              className={`bot-mic ${listening ? "is-on" : ""}`}
+              className={`bot-plus ${more ? "is-on" : ""}`}
               type="button"
-              aria-pressed={listening}
-              aria-label={listening ? pack.micOn : pack.micOff}
-              onClick={toggleMic}
+              aria-expanded={more}
+              aria-label={more ? pack.close : pack.more}
+              onClick={() => setMore((value) => !value)}
             >
-              <IconMic />
+              <IconPlus />
             </button>
             <textarea
               ref={fieldRef}

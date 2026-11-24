@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react"
 import * as THREE from "three"
 
-function createPip(container, opts = {}) {
+function createAura(container, opts = {}) {
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches
   const state = {
     yaw: 0,
@@ -9,301 +9,218 @@ function createPip(container, opts = {}) {
     drag: false,
     talkUntil: 0,
     happyUntil: 0,
-    waveUntil: 0,
-    blinkAt: 2,
-    blinkEnd: 0,
+    spinAt: -9,
     look: { x: 0, y: 0 },
     thinking: false,
   }
-  const parts = {}
   let running = false
   let raf = 0
+  let last = 0
+  let glow = 0.5
+  let scale = 1
   const now = () => performance.now() / 1000
+  const ease = (object, key, value, rate) => {
+    object[key] += (value - object[key]) * rate
+  }
+  const clamp = (value) => Math.max(-1, Math.min(1, value))
 
   const scene = new THREE.Scene()
-  const camera = new THREE.PerspectiveCamera(35, 1.3, 0.1, 60)
-  camera.position.set(0, 0.9, 8.8)
-  camera.lookAt(0, 0.7, 0)
+  const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 60)
+  camera.position.set(0, 0.1, opts.cameraZ || 7.2)
+  camera.lookAt(0, 0, 0)
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
-  renderer.outputColorSpace = THREE.SRGBColorSpace
-  renderer.toneMapping = THREE.NoToneMapping
-  renderer.domElement.style.cssText = "display:block;width:100%;height:100%;"
-  container.appendChild(renderer.domElement)
+  const canvas = renderer.domElement
+  canvas.style.cssText = "display:block;width:100%;height:100%;pointer-events:none;"
+  container.appendChild(canvas)
 
-  const physical = (color, roughness, clearcoat) => new THREE.MeshPhysicalMaterial({
-    color,
-    roughness,
-    metalness: 0,
-    clearcoat: clearcoat == null ? 0.35 : clearcoat,
-    clearcoatRoughness: 0.35,
-  })
-  const basic = (color, opacity) => new THREE.MeshBasicMaterial({
-    color,
-    transparent: opacity != null,
-    opacity: opacity == null ? 1 : opacity,
-  })
+  const accent = new THREE.Color(opts.accent != null ? opts.accent : 0xffb347)
+  const cream = new THREE.Color(0xfff6e8)
 
-  const cream = physical(0xf4e7d6, 0.5)
-  const creamS = physical(0xe3d0ba, 0.55)
-  const ivory = physical(0xfdf8f1, 0.45)
-  const peach = physical(0xeaa766, 0.45)
-  const peachL = physical(0xf5c490, 0.45)
-  const steel = physical(0x8fb1c6, 0.3, 0.8)
-  const black = physical(0x0b0b0e, 0.12, 1)
-  const glow = basic(0xffffff)
-  const blush = basic(0xf48a8a, 0.7)
-  const line = basic(0x2b1d1a)
-  const sphere = new THREE.SphereGeometry(1, 40, 30)
-  const cylinder = new THREE.CylinderGeometry(1, 1, 1, 32)
-
-  function rounded(width, height, radius) {
-    const x = -width / 2
-    const y = -height / 2
-    const shape = new THREE.Shape()
-    shape.moveTo(x + radius, y)
-    shape.lineTo(x + width - radius, y)
-    shape.quadraticCurveTo(x + width, y, x + width, y + radius)
-    shape.lineTo(x + width, y + height - radius)
-    shape.quadraticCurveTo(x + width, y + height, x + width - radius, y + height)
-    shape.lineTo(x + radius, y + height)
-    shape.quadraticCurveTo(x, y + height, x, y + height - radius)
-    shape.lineTo(x, y + radius)
-    shape.quadraticCurveTo(x, y, x + radius, y)
-    return shape
+  function bladeMat(inner, outer, alpha) {
+    return new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      uniforms: {
+        cIn: { value: inner.clone() },
+        cOut: { value: outer.clone() },
+        uAlpha: { value: alpha },
+        uGlow: { value: 0.5 },
+      },
+      vertexShader: `
+        attribute float aV;
+        varying vec3 vN;
+        varying vec3 vV;
+        varying float vv;
+        void main() {
+          vec4 mv = modelViewMatrix * vec4(position, 1.0);
+          vN = normalize(normalMatrix * normal);
+          vV = normalize(-mv.xyz);
+          vv = aV;
+          gl_Position = projectionMatrix * mv;
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 cIn;
+        uniform vec3 cOut;
+        uniform float uAlpha;
+        uniform float uGlow;
+        varying vec3 vN;
+        varying vec3 vV;
+        varying float vv;
+        void main() {
+          float f = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), 2.0);
+          vec3 c = mix(cIn, cOut, smoothstep(0.0, 1.0, vv));
+          float g = pow(1.0 - vv, 3.0) * uGlow;
+          c += g * cIn * 0.8;
+          float a = uAlpha * (0.55 + 1.1 * f) * (0.7 + 0.5 * uGlow) + g * 0.22;
+          gl_FragColor = vec4(c, clamp(a, 0.0, 0.9));
+        }
+      `,
+    })
   }
 
-  function smooth(geometry) {
-    const position = geometry.attributes.position
-    const normal = geometry.attributes.normal
-    const groups = {}
-    const keyOf = (index) => `${position.getX(index).toFixed(3)},${position.getY(index).toFixed(3)},${position.getZ(index).toFixed(3)}`
-    for (let index = 0; index < position.count; index += 1) {
-      const key = keyOf(index)
-      const group = groups[key] || [0, 0, 0]
-      groups[key] = group
-      group[0] += normal.getX(index)
-      group[1] += normal.getY(index)
-      group[2] += normal.getZ(index)
+  function point(start, span, width, radius, twistStart, twistRange, u, v) {
+    const theta = start + u * span
+    const envelope = Math.sin(Math.PI * u) ** 0.7
+    const band = width * (0.08 + 0.92 * envelope)
+    const twist = twistStart + u * twistRange
+    const offset = (v - 0.5) * band
+    const ring = radius * (1 + 0.07 * Math.cos(5 * theta)) + offset * Math.cos(twist)
+    return [
+      ring * Math.cos(theta),
+      ring * Math.sin(theta),
+      offset * Math.sin(twist) * 1.2 + (u - 0.5) * 0.5,
+    ]
+  }
+
+  function blade(start, span, width, radius, twistStart, twistRange) {
+    const stepsU = 64
+    const stepsV = 12
+    const positions = []
+    const across = []
+    const indices = []
+    for (let i = 0; i <= stepsU; i += 1) {
+      for (let j = 0; j <= stepsV; j += 1) {
+        positions.push(...point(start, span, width, radius, twistStart, twistRange, i / stepsU, j / stepsV))
+        across.push(j / stepsV)
+      }
     }
-    for (let index = 0; index < position.count; index += 1) {
-      const group = groups[keyOf(index)]
-      const length = Math.hypot(group[0], group[1], group[2]) || 1
-      normal.setXYZ(index, group[0] / length, group[1] / length, group[2] / length)
+    for (let i = 0; i < stepsU; i += 1) {
+      for (let j = 0; j < stepsV; j += 1) {
+        const a = i * (stepsV + 1) + j
+        const b = a + stepsV + 1
+        indices.push(a, b, a + 1, b, b + 1, a + 1)
+      }
     }
+    const geometry = new THREE.BufferGeometry()
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3))
+    geometry.setAttribute("aV", new THREE.Float32BufferAttribute(across, 1))
+    geometry.setIndex(indices)
+    geometry.computeVertexNormals()
     return geometry
   }
 
-  function slab(width, height, radius, depth, bevel, segments) {
-    const geometry = new THREE.ExtrudeGeometry(rounded(width, height, radius), {
-      depth,
-      bevelEnabled: true,
-      bevelThickness: bevel,
-      bevelSize: bevel,
-      bevelSegments: segments || 6,
-      curveSegments: 18,
-    })
-    geometry.translate(0, 0, -depth / 2)
-    return smooth(geometry)
+  function edge(start, span, width, radius, twistStart, twistRange, v, material) {
+    const points = []
+    for (let i = 0; i <= 64; i += 1) {
+      const spot = point(start, span, width, radius, twistStart, twistRange, i / 64, v)
+      points.push(new THREE.Vector3(spot[0], spot[1], spot[2]))
+    }
+    return new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), material)
   }
 
-  function place(parent, geometry, material, position, scale) {
-    const mesh = new THREE.Mesh(geometry, material)
-    mesh.position.set(position[0], position[1], position[2])
-    if (scale) mesh.scale.set(scale[0], scale[1], scale[2])
-    parent.add(mesh)
-    return mesh
-  }
-
-  function bar(parent, from, to, radius, material) {
-    const start = new THREE.Vector3(from[0], from[1], from[2])
-    const end = new THREE.Vector3(to[0], to[1], to[2])
-    const delta = end.clone().sub(start)
-    const mesh = new THREE.Mesh(cylinder, material)
-    mesh.position.copy(start.clone().add(end).multiplyScalar(0.5))
-    mesh.scale.set(radius, delta.length(), radius)
-    mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), delta.normalize())
-    parent.add(mesh)
-    return mesh
-  }
-
-  parts.root = new THREE.Group()
-  scene.add(parts.root)
-  parts.upper = new THREE.Group()
-  parts.root.add(parts.upper)
-  parts.head = new THREE.Group()
-  parts.head.position.set(0, 1.5, 0)
-  parts.upper.add(parts.head)
-
-  ;[-1, 1].forEach((side) => {
-    place(parts.root, cylinder, creamS, [side * 0.3, -0.85, 0], [0.16, 0.22, 0.16])
-    place(parts.root, sphere, cream, [side * 0.3, -1.15, 0.1], [0.3, 0.2, 0.4])
+  const root = new THREE.Group()
+  scene.add(root)
+  const tilt = new THREE.Group()
+  root.add(tilt)
+  const ringA = new THREE.Group()
+  const ringB = new THREE.Group()
+  tilt.add(ringA)
+  tilt.add(ringB)
+  const materialA = bladeMat(accent.clone().lerp(cream, 0.35), cream, 0.3)
+  const materialB = bladeMat(accent, accent.clone().lerp(cream, 0.55), 0.24)
+  const materials = [materialA, materialB]
+  const lineA = new THREE.LineBasicMaterial({
+    color: accent.clone().lerp(cream, 0.2),
+    transparent: true,
+    opacity: 0.55,
+    depthWrite: false,
   })
-  place(parts.upper, sphere, cream, [0, 0, 0], [0.78, 0.72, 0.64])
-  place(parts.upper, sphere, peach, [-0.36, 0.14, 0.52], [0.12, 0.15, 0.04])
-  place(parts.upper, sphere, steel, [-0.36, 0.14, 0.53], [0.085, 0.11, 0.04])
-  place(parts.upper, slab(0.3, 0.2, 0.07, 0.01, 0.03, 3), peach, [0.22, -0.12, 0.58])
-  place(parts.upper, slab(0.24, 0.14, 0.05, 0.01, 0.025, 3), ivory, [0.22, -0.12, 0.6])
-  ;[0.15, 0.29].forEach((x) => place(parts.upper, sphere, peach, [x, -0.1, 0.64], [0.025, 0.025, 0.015]))
-  const smileMark = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.012, 6, 16, Math.PI), peach)
-  smileMark.position.set(0.22, -0.14, 0.64)
-  smileMark.rotation.z = Math.PI
-  parts.upper.add(smileMark)
-  place(parts.upper, slab(0.5, 0.6, 0.2, 0.16, 0.12, 5), cream, [0, 0.05, -0.78])
-  const backpack = place(parts.upper, slab(0.3, 0.36, 0.1, 0.01, 0.03, 3), creamS, [0, 0.05, -0.99])
-  backpack.rotation.y = Math.PI
-
-  function arm(side) {
-    const shoulder = new THREE.Group()
-    shoulder.position.set(side * 0.8, 0.22, 0)
-    parts.upper.add(shoulder)
-    place(shoulder, sphere, cream, [0, 0, 0], [0.2, 0.2, 0.2])
-    place(shoulder, cylinder, cream, [0, -0.2, 0], [0.16, 0.22, 0.16])
-    place(shoulder, cylinder, peach, [0, -0.17, 0], [0.18, 0.07, 0.18])
-    const elbow = new THREE.Group()
-    elbow.position.y = -0.42
-    shoulder.add(elbow)
-    place(elbow, sphere, cream, [0, 0, 0], [0.15, 0.15, 0.15])
-    place(elbow, cylinder, cream, [0, -0.17, 0], [0.14, 0.17, 0.14])
-    place(elbow, sphere, cream, [0, -0.4, 0], [0.2, 0.19, 0.18])
-    place(elbow, sphere, cream, [side * 0.14, -0.36, 0.05], [0.08, 0.1, 0.08])
-    return { shoulder, elbow }
-  }
-  parts.left = arm(-1)
-  parts.right = arm(1)
-
-  place(parts.head, slab(1.6, 1.2, 0.5, 1, 0.45, 10), cream, [0, 0, 0])
-  ;[-1, 1].forEach((side) => place(parts.head, sphere, creamS, [side * 0.3, 0.93, 0.84], [0.035, 0.035, 0.02]))
-  place(parts.head, slab(1.38, 0.98, 0.4, 0.02, 0.04, 4), creamS, [0, 0, 0.97])
-  place(parts.head, slab(1.28, 0.88, 0.36, 0.02, 0.035, 4), ivory, [0, 0, 0.985])
-  parts.eyes = []
-  parts.irises = []
-  ;[-1, 1].forEach((side) => {
-    const eye = new THREE.Group()
-    eye.position.set(side * 0.38, 0.06, 0)
-    parts.head.add(eye)
-    const iris = new THREE.Group()
-    eye.add(iris)
-    place(iris, sphere, black, [0, 0, 1.04], [0.15, 0.17, 0.1])
-    place(iris, sphere, glow, [0.05, 0.07, 1.13], [0.045, 0.045, 0.02])
-    place(iris, sphere, glow, [-0.045, -0.06, 1.12], [0.02, 0.02, 0.015])
-    parts.eyes.push(eye)
-    parts.irises.push(iris)
-    place(parts.head, sphere, blush, [side * 0.58, -0.14, 1.045], [0.14, 0.09, 0.015])
+  const lineB = new THREE.LineBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.4,
+    depthWrite: false,
   })
-  parts.smile = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.02, 8, 24, Math.PI), line)
-  parts.smile.position.set(0, -0.04, 1.05)
-  parts.smile.rotation.z = Math.PI
-  parts.smile.scale.set(1, 0.6, 1)
-  parts.head.add(parts.smile)
-  parts.mouth = place(parts.head, sphere, line, [0, -0.1, 1.05], [0.09, 0.02, 0.02])
+  for (let step = 0; step < 5; step += 1) {
+    const start = (step * Math.PI * 2) / 5
+    ringA.add(new THREE.Mesh(blade(start, 2.7, 0.95, 1.15, -0.7, 1.4), materialA))
+    ringA.add(edge(start, 2.7, 0.95, 1.15, -0.7, 1.4, 0, lineA))
+    ringA.add(edge(start, 2.7, 0.95, 1.15, -0.7, 1.4, 1, lineB))
+    const inner = start + Math.PI / 5
+    ringB.add(new THREE.Mesh(blade(inner, 2.2, 0.62, 1.08, 0.9, -1.2), materialB))
+    ringB.add(edge(inner, 2.2, 0.62, 1.08, 0.9, -1.2, 0, lineA))
+  }
+  ringB.rotation.z = 0.3
 
-  ;[-1, 1].forEach((side) => {
-    const cup = place(parts.head, cylinder, peach, [side * 1.37, -0.05, 0], [0.45, 0.24, 0.3])
-    cup.rotation.z = Math.PI / 2
-    const ring = place(parts.head, cylinder, peachL, [side * 1.5, -0.05, 0], [0.3, 0.06, 0.19])
-    ring.rotation.z = Math.PI / 2
+  const glowCanvas = document.createElement("canvas")
+  glowCanvas.width = 128
+  glowCanvas.height = 128
+  const context = glowCanvas.getContext("2d")
+  const gradient = context.createRadialGradient(64, 64, 0, 64, 64, 64)
+  gradient.addColorStop(0, "rgba(255,255,255,1)")
+  gradient.addColorStop(0.35, "rgba(255,255,255,.4)")
+  gradient.addColorStop(1, "rgba(255,255,255,0)")
+  context.fillStyle = gradient
+  context.fillRect(0, 0, 128, 128)
+  const texture = new THREE.CanvasTexture(glowCanvas)
+  const glowMaterial = (opacity) => new THREE.MeshBasicMaterial({
+    map: texture,
+    color: accent,
+    transparent: true,
+    opacity,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
   })
-  parts.antenna = new THREE.Group()
-  parts.antenna.position.set(1.36, 0.4, -0.1)
-  parts.head.add(parts.antenna)
-  bar(parts.antenna, [0, 0, 0], [0.4, 1, 0], 0.035, peach)
-  place(parts.antenna, sphere, peach, [0.4, 1.02, 0], [0.14, 0.14, 0.14])
-
-  parts.ring = new THREE.Mesh(new THREE.TorusGeometry(1.3, 0.025, 8, 64), basic(0xeaa766, 0.8))
-  parts.ring.rotation.x = Math.PI / 2
-  parts.ring.position.y = -1.36
-  scene.add(parts.ring)
-  const shadow = new THREE.Mesh(new THREE.CircleGeometry(1.25, 40), basic(0x000000, 0.28))
-  shadow.rotation.x = -Math.PI / 2
-  shadow.position.y = -1.37
-  scene.add(shadow)
-  parts.shadow = shadow
-  if (opts.floor === false) {
-    parts.ring.visible = false
-    parts.shadow.visible = false
-  }
-
-  scene.add(new THREE.HemisphereLight(0xfff4e6, 0x3a4658, 0.95))
-  const key = new THREE.DirectionalLight(0xffffff, 0.9)
-  key.position.set(2.5, 4, 5)
-  scene.add(key)
-  const rim = new THREE.DirectionalLight(0xffc48a, 0.8)
-  rim.position.set(-3, 2, -3)
-  scene.add(rim)
-
-  const ease = (object, keyName, value, rate) => {
-    object[keyName] += (value - object[keyName]) * rate
-  }
+  const halo = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), glowMaterial(0.3))
+  halo.scale.set(4.4, 4.4, 1)
+  halo.position.set(0, -0.3, -0.5)
+  tilt.add(halo)
 
   function tick(ms) {
     if (!running) return
     raf = requestAnimationFrame(tick)
     const time = ms / 1000
-    const talk = time < state.talkUntil
+    const delta = Math.min(time - last, 0.05)
+    last = time
+    const talking = time < state.talkUntil
     const happy = time < state.happyUntil
-    const wave = time < state.waveUntil
-    const think = state.thinking && !talk
-    const sway = reduce ? 0 : Math.sin(time * 1.7)
-    const lookX = think ? 0.5 : state.look.x
-    const lookY = think ? -0.6 : state.look.y
-    parts.upper.position.y = sway * 0.035
-    parts.upper.scale.y = 1 + sway * 0.01
-    if (!state.drag && time > state.holdUntil) state.yaw *= 0.965
-    ease(parts.root.rotation, "y", state.yaw + (Math.abs(state.yaw) < 0.25 ? lookX * 0.22 : 0), 0.12)
-    const nod = talk && !reduce ? Math.sin(time * 7) * 0.05 : 0
-    ease(parts.head.rotation, "y", lookX * 0.5, 0.08)
-    ease(parts.head.rotation, "x", lookY * 0.3 + nod, 0.08)
-    ease(parts.head.rotation, "z", think ? 0.14 : (reduce ? 0 : Math.sin(time * 0.7) * 0.02), 0.08)
-    parts.irises.forEach((iris) => {
-      ease(iris.position, "x", lookX * 0.07, 0.2)
-      ease(iris.position, "y", -lookY * 0.05, 0.2)
+    const thinking = state.thinking && !talking
+    const pace = reduce ? 0.3 : 1
+    const voice = talking ? 0.5 + 0.5 * Math.sin(time * 9 + Math.sin(time * 3) * 2) : 0
+    ringA.rotation.z += delta * pace * (thinking ? 1.2 : talking ? 0.5 : 0.12)
+    ringB.rotation.z -= delta * pace * (thinking ? 1.6 : talking ? 0.7 : 0.18)
+    const targetGlow = 0.5 + voice * 0.9 + (happy ? 0.5 : 0) + (thinking ? 0.15 + 0.2 * Math.sin(time * 4) : 0)
+    glow += (targetGlow - glow) * 0.12
+    materials.forEach((material) => {
+      material.uniforms.uGlow.value = glow
     })
-    if (time > state.blinkAt) {
-      state.blinkEnd = time + 0.13
-      state.blinkAt = time + 2 + Math.random() * 3.5
+    halo.material.opacity = 0.2 + glow * 0.28
+    const targetScale = 1 + voice * 0.07 + (happy ? 0.05 * Math.sin(time * 12) : 0) + (reduce ? 0 : Math.sin(time * 1.6) * 0.02)
+    scale += (targetScale - scale) * 0.2
+    tilt.scale.setScalar(scale)
+    root.position.y = reduce ? 0 : Math.sin(time * 1.2) * 0.07
+    const spun = time - state.spinAt
+    let extra = 0
+    if (spun >= 0 && spun < 1.4) {
+      const progress = spun / 1.4
+      extra = Math.PI * 2 * (progress < 0.5 ? 2 * progress * progress : 1 - ((-2 * progress + 2) ** 2) / 2)
     }
-    const eyeScale = happy ? 0.3 : (time < state.blinkEnd ? 0.08 : 1)
-    parts.eyes.forEach((eye) => ease(eye.scale, "y", eyeScale, 0.45))
-    const open = talk ? 0.03 + (Math.sin(time * 17 + Math.sin(time * 5) * 2) * 0.5 + 0.5) * 0.11 : 0
-    ease(parts.mouth.scale, "y", Math.max(0.02, open), 0.4)
-    ease(parts.mouth.scale, "x", talk ? 0.13 : 0.15, 0.2)
-    parts.smile.visible = parts.mouth.scale.y < 0.045
-    ease(parts.smile.scale, "x", happy ? 1.3 : 1, 0.2)
-    ease(parts.smile.scale, "y", happy ? 0.9 : 0.55, 0.2)
-    const right = parts.right
-    const left = parts.left
-    if (wave) {
-      ease(right.shoulder.rotation, "z", 2.5, 0.15)
-      ease(right.shoulder.rotation, "x", 0, 0.15)
-      ease(right.elbow.rotation, "z", Math.sin(time * 11) * 0.55, 0.3)
-      ease(right.elbow.rotation, "x", 0, 0.15)
-    } else if (talk) {
-      ease(right.shoulder.rotation, "z", 0.25, 0.1)
-      ease(right.shoulder.rotation, "x", -0.35, 0.1)
-      ease(right.elbow.rotation, "z", 0, 0.1)
-      ease(right.elbow.rotation, "x", -0.9 + Math.sin(time * 3) * 0.3, 0.15)
-    } else {
-      ease(right.shoulder.rotation, "z", 0.16 + sway * 0.02, 0.1)
-      ease(right.shoulder.rotation, "x", 0, 0.1)
-      ease(right.elbow.rotation, "z", 0, 0.15)
-      ease(right.elbow.rotation, "x", -0.12, 0.1)
-    }
-    if (think) {
-      ease(left.shoulder.rotation, "z", -0.1, 0.1)
-      ease(left.shoulder.rotation, "x", -0.9, 0.1)
-      ease(left.elbow.rotation, "x", -2.2, 0.1)
-    } else if (talk) {
-      ease(left.shoulder.rotation, "z", -0.25, 0.1)
-      ease(left.shoulder.rotation, "x", -0.3, 0.1)
-      ease(left.elbow.rotation, "x", -0.8 + Math.sin(time * 3.3 + 1) * 0.3, 0.15)
-    } else {
-      ease(left.shoulder.rotation, "z", -0.16 - sway * 0.02, 0.1)
-      ease(left.shoulder.rotation, "x", 0, 0.1)
-      ease(left.elbow.rotation, "x", -0.12, 0.1)
-    }
-    parts.antenna.rotation.z = reduce ? 0 : Math.sin(time * (talk ? 9 : 2)) * (talk ? 0.1 : 0.04)
-    parts.ring.material.opacity = 0.55 + (reduce ? 0 : Math.sin(time * 2) * 0.2)
+    if (time > state.holdUntil) state.yaw *= 0.965
+    ease(root.rotation, "y", state.yaw + extra + (Math.abs(state.yaw) < 0.25 ? state.look.x * 0.35 : 0), 0.12)
+    ease(root.rotation, "x", state.look.y * 0.25, 0.08)
     renderer.render(scene, camera)
   }
 
@@ -319,7 +236,6 @@ function createPip(container, opts = {}) {
   const observer = new ResizeObserver(resize)
   observer.observe(container)
 
-  const clamp = (value) => Math.max(-1, Math.min(1, value))
   function onMove(event) {
     const rect = container.getBoundingClientRect()
     state.look.x = clamp((event.clientX - (rect.left + rect.width / 2)) / (window.innerWidth * 0.45))
@@ -341,8 +257,8 @@ function createPip(container, opts = {}) {
   return {
     talk(seconds) { state.talkUntil = now() + (seconds == null ? 3 : seconds) },
     stopTalking() { state.talkUntil = 0 },
-    wave(seconds) {
-      state.waveUntil = now() + (seconds == null ? 2.2 : seconds)
+    wave() {
+      state.spinAt = now()
       state.happyUntil = Math.max(state.happyUntil, now() + 1.6)
     },
     happy(seconds) { state.happyUntil = now() + (seconds == null ? 2 : seconds) },
@@ -356,7 +272,7 @@ function createPip(container, opts = {}) {
       observer.disconnect()
       renderer.dispose()
       renderer.forceContextLoss()
-      if (renderer.domElement.parentNode) renderer.domElement.parentNode.removeChild(renderer.domElement)
+      if (canvas.parentNode) canvas.parentNode.removeChild(canvas)
     },
   }
 }
@@ -364,33 +280,29 @@ function createPip(container, opts = {}) {
 export default function Pip({ speaking, listening, waveTick = 0 }) {
   const hostRef = useRef(null)
   const apiRef = useRef(null)
-  const speakingRef = useRef(speaking)
-  const listeningRef = useRef(listening)
-  speakingRef.current = speaking
-  listeningRef.current = listening
 
   useEffect(() => {
     const host = hostRef.current
     if (!host) return undefined
-    const pip = createPip(host, { floor: true })
-    apiRef.current = pip
+    const aura = createAura(host)
+    apiRef.current = aura
     return () => {
       apiRef.current = null
-      pip.destroy()
+      aura.destroy()
     }
   }, [])
 
   useEffect(() => {
-    const pip = apiRef.current
-    if (!pip) return
-    if (speaking) pip.talk(30)
-    else pip.stopTalking()
-    pip.thinking(listening && !speaking)
+    const aura = apiRef.current
+    if (!aura) return
+    if (speaking) aura.talk(30)
+    else aura.stopTalking()
+    aura.thinking(listening && !speaking)
   }, [speaking, listening])
 
   useEffect(() => {
     if (!waveTick) return
-    apiRef.current?.wave(2.2)
+    apiRef.current?.wave()
   }, [waveTick])
 
   return <span ref={hostRef} className="pip-view" aria-hidden="true" />
