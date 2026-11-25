@@ -13,9 +13,17 @@ export default function Header() {
   const api = useSmooth()
   const [open, setOpen] = useState(false)
   const [light, setLight] = useState(false)
+  const [tucked, setTucked] = useState(false)
   const skipLock = useRef(true)
+  const lastY = useRef(0)
 
-  useScrollFrame(() => {
+  useScrollFrame((y) => {
+    const delta = y - lastY.current
+    if (Math.abs(delta) > 6) {
+      const hide = delta > 0 && y > 160
+      setTucked((value) => (value === hide ? value : hide))
+      lastY.current = y
+    }
     const nodes = document.querySelectorAll("[data-header='light']")
     let over = false
     nodes.forEach((node) => {
@@ -49,7 +57,7 @@ export default function Header() {
 
   return (
     <>
-      <header className={`site-header ${light && !open ? "is-light" : ""} ${open ? "is-open" : ""}`}>
+      <header className={`site-header ${light && !open ? "is-light" : ""} ${open ? "is-open" : ""} ${tucked && !open ? "is-tucked" : ""}`}>
         <Link to="/" className="brand" aria-label="Siriz Interiors, home">
           <img src="/logo.png" alt="Siriz Interiors" />
         </Link>

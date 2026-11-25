@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react"
 import { createPortal } from "react-dom"
 import { projects, studio } from "../data/site"
+import { addScrollGuard, easeOutExpo, getLenis, useReveal, useSmooth } from "../scroll"
 import { useTitle } from "../useTitle"
 
 function reduced() {
@@ -244,8 +245,12 @@ export default function Home() {
       const rect = section.getBoundingClientRect()
       const view = window.innerHeight || 1
       const total = Math.max(1, section.offsetHeight - view)
+      // The on-screen rect decides where the picture is pinned. While the portfolio's
+      // curved reveal slides over this section it pins the section with a transform,
+      // so the rect reads as "top of the reel" then: the room, the copy and the frame
+      // must come from the real scroll position instead.
       const target = Math.min(1, Math.max(0, -rect.top / total))
-      const pos = target * (ROOM_TIMES.length - 1)
+      const pos = clamp((window.scrollY - section.offsetTop) / total) * (ROOM_TIMES.length - 1)
       const room = Math.round(pos)
       const settled = Math.abs(pos - room) < 0.06
       const parked = target >= 0.992
@@ -258,6 +263,11 @@ export default function Home() {
       } else place(rect, view)
       const visible = rect.bottom > -40 && rect.top < view + 40
       const held = settled && !playing
+      // After a jump (back to top, scrollbar drag) keep the frame in step with the room.
+      if (held && !video.seeking && Math.abs(video.currentTime - ROOM_TIMES[room]) > 0.15) {
+        video.currentTime = ROOM_TIMES[room]
+        showForward()
+      }
       video.classList.toggle("is-held", held)
       back.classList.toggle("is-held", held)
       const line = lineRef.current
@@ -316,10 +326,11 @@ export default function Home() {
 
   usePageTurn(transportRef)
   useCurvedReveal()
+  useReveal()
 
   return (
     <>
-      <section className="enter-reel" ref={reelRef} data-header="light">
+      <section className="enter-reel" ref={reelRef} data-header="light" data-tone="photo">
         <div className="enter-reel-pin" ref={pinRef}>
           <video ref={videoRef} className="enter-film" src="/walk.mp4" poster="/walk-mobile/frame-001.jpg" muted playsInline preload="auto" />
           <video ref={backRef} className="enter-film is-back" src="/walk-back.mp4" muted playsInline preload="metadata" />
@@ -408,6 +419,95 @@ function rise(start, end, value) {
   return t * t * (3 - 2 * t)
 }
 
+// Each reason is shown as a real interior material swatch, chosen to suit it.
+const WHY_MATERIALS = [
+  { key: "oak", name: "Oak", finish: "Laminate", r: -2.2 },
+  { key: "teak", name: "Teak", finish: "Veneer", r: 1.6 },
+  { key: "linen", name: "Linen", finish: "Weave", r: -1.2 },
+  { key: "brass", name: "Brass", finish: "Brushed", r: 2.4 },
+  { key: "glass", name: "Glass", finish: "Frosted", r: -1.8 },
+  { key: "terrazzo", name: "Terrazzo", finish: "Chip", r: 1.2 },
+  { key: "blueprint", name: "Blueprint", finish: "Plan", r: -2.6 },
+  { key: "marble", name: "Marble", finish: "Carrara", r: 2 },
+]
+
+// Swatches with the four project photos pinned between them, like a mood board.
+const WHY_BOARD = [
+  ["swatch", 0], ["photo", 0], ["swatch", 1], ["swatch", 2],
+  ["swatch", 3], ["swatch", 4], ["photo", 1], ["swatch", 5],
+  ["photo", 2], ["swatch", 6], ["swatch", 7], ["photo", 3],
+]
+const WHY_PHOTO_TILT = [2.8, -3.2, 2.2, -2.4]
+
+function WhyContent({ face = false }) {
+  // The copy seen through the letters is drawn already revealed, so it matches
+  // the real page pixel for pixel at the moment they swap. Tags stay identical
+  // so both copies take the same styles; the copy is aria-hidden and inert.
+  const reveal = face ? "why-reveal is-in" : "why-reveal"
+  const reasons = [...WHY_LEFT, ...WHY_RIGHT]
+  return (
+    <div className="mb-wrap">
+      <div className="mb-ruler" aria-hidden="true" />
+      <header className="mb-head">
+        <div className="mb-head-main">
+          <p className={`mb-kicker ${reveal}`}>The Siriz material board</p>
+          <h2 className={`mb-title ${reveal}`} style={{ "--d": "0.06s" }}>
+            Why <em>Siriz Interiors</em>
+          </h2>
+        </div>
+        <div className="mb-head-side">
+          <q className={`mb-quote ${reveal}`} style={{ "--d": "0.12s" }}>We Design your Dream Home, the excellence of interior</q>
+          <p className={`mb-lede ${reveal}`} style={{ "--d": "0.18s" }}>
+            Siriz Interiors provides a full range of planning and turnkey fit-out services in the interior industry.
+          </p>
+          <p className={`mb-legend ${reveal}`} style={{ "--d": "0.24s" }}>
+            <span>8 reasons</span><i /><span>8 materials</span><i /><span>1 studio</span>
+          </p>
+        </div>
+      </header>
+      <div className="mb-board">
+        {WHY_BOARD.map(([kind, index], order) => {
+          const delay = { "--d": `${(order % 4) * 0.08}s` }
+          if (kind === "photo") {
+            return (
+              <figure className={`mb-photo ${reveal}`} style={{ ...delay, "--r": `${WHY_PHOTO_TILT[index]}deg` }} key={`p${index}`}>
+                <span className="mb-tape" aria-hidden="true" />
+                <img src={projects[index].cover} alt={projects[index].coverAlt} loading="lazy" draggable={false} />
+                <figcaption>{projects[index].title}<small>{projects[index].typology}</small></figcaption>
+              </figure>
+            )
+          }
+          const item = reasons[index]
+          const material = WHY_MATERIALS[index]
+          return (
+            <article className={`mb-swatch is-${material.key} ${reveal}`} style={{ ...delay, "--r": `${material.r}deg` }} key={item.title}>
+              <div className="mb-chip">
+                <span className="mb-hole" aria-hidden="true" />
+                <span className="mb-name">{material.name}<small>{material.finish}</small></span>
+                <span className="mb-no">{pad(index + 1)}</span>
+              </div>
+              <div className="mb-info">
+                <span className="mb-ic" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">{item.mark}</svg>
+                </span>
+                <h3>{item.title}</h3>
+                <p>{item.body}</p>
+              </div>
+            </article>
+          )
+        })}
+      </div>
+      <p className={`mb-foot ${reveal}`}>Siriz Interiors · Feel your comfort</p>
+    </div>
+  )
+}
+
+/**
+ * "Why Siriz Interiors": one scroll dives into the gold "I" of SIRIZ. The page
+ * waits inside the letters (a copy sits under the multiply mask, so it only
+ * shows through the letter shapes), grows with the zoom until it fills the
+ * screen, then the real page takes over at the same spot.
+ */
 function WhyPage() {
   const rootRef = useRef(null)
   const pinRef = useRef(null)
@@ -417,8 +517,9 @@ function WhyPage() {
   const maskRef = useRef(null)
   const statsRef = useRef(null)
   const hintRef = useRef(null)
-  const statementRef = useRef(null)
   const glowRef = useRef(null)
+  const auraRef = useRef(null)
+  const faceRef = useRef(null)
   const sheetRef = useRef(null)
 
   useEffect(() => {
@@ -426,15 +527,53 @@ function WhyPage() {
     const stage = stageRef.current
     const line = lineRef.current
     const letter = letterRef.current
-    if (!root || !stage || !line || !letter) return undefined
+    const sheet = sheetRef.current
+    if (!root || !stage || !line || !letter || !sheet) return undefined
     const still = reduced()
     if (still) root.classList.add("is-still")
-    const metrics = { dx: 0, dy: 0, smax: 6 }
+    const metrics = { dx: 0, dy: 0, smax: 6, cover: 0.9 }
     let frame = 0
+    let primed = false
+
+    // Measure the ink of the "I" in the real font: the width of its stem, its
+    // height, and where its ink sits inside the letter box. The zoom must make
+    // the stem cover the whole screen before the letters are faded away,
+    // otherwise the edges of the letter show as grey bands.
+    const inkOfI = (font) => {
+      const canvas = document.createElement("canvas")
+      canvas.width = 400
+      canvas.height = 400
+      const ctx = canvas.getContext("2d", { willReadFrequently: true })
+      ctx.font = font
+      ctx.fillStyle = "#000"
+      ctx.textBaseline = "alphabetic"
+      const base = 300
+      ctx.fillText("I", 100, base)
+      const m = ctx.measureText("I")
+      const ascent = m.actualBoundingBoxAscent || 140
+      const row = Math.round(base - ascent / 2)
+      const data = ctx.getImageData(0, row, 400, 1).data
+      let left = -1
+      let right = -1
+      for (let x = 0; x < 400; x += 1) {
+        if (data[x * 4 + 3] > 128) {
+          if (left < 0) left = x
+          right = x
+        }
+      }
+      const stem = left < 0 ? m.width * 0.25 : right - left + 1
+      const inkCenter = left < 0 ? 100 + m.width / 2 : (left + right) / 2
+      return {
+        stem: stem / 200,
+        height: ascent / 200,
+        shiftX: (inkCenter - (100 + m.width / 2)) / 200,
+        fontAscent: (m.fontBoundingBoxAscent || ascent * 1.25) / 200,
+      }
+    }
 
     const measure = () => {
       const view = window.innerHeight || 1
-      if (pinRef.current) pinRef.current.style.height = still ? `${view}px` : `${view * 3.4}px`
+      if (pinRef.current) pinRef.current.style.height = still ? `${view}px` : `${view * 3}px`
       line.style.transform = "none"
       line.style.fontSize = "100px"
       const box = line.getBoundingClientRect()
@@ -444,39 +583,53 @@ function WhyPage() {
       const lineBox = line.getBoundingClientRect()
       const letterBox = letter.getBoundingClientRect()
       const tracking = parseFloat(getComputedStyle(letter).letterSpacing) || 0
-      const originX = letterBox.left - lineBox.left + (letterBox.width - tracking) / 2
-      const originY = letterBox.top - lineBox.top + letterBox.height / 2
+      const style = getComputedStyle(letter)
+      const ink = inkOfI(`${style.fontStyle} ${style.fontWeight} 200px ${style.fontFamily}`)
+      // Aim at the middle of the stem's ink, not the middle of the letter box.
+      const originX = letterBox.left - lineBox.left + (letterBox.width - tracking) / 2 + ink.shiftX * size
+      const originY = letterBox.top - lineBox.top + (ink.fontAscent - ink.height / 2) * size
       metrics.dx = stage.clientWidth / 2 - (lineBox.left - stageBox.left + originX)
       metrics.dy = stage.clientHeight / 2 - (lineBox.top - stageBox.top + originY)
-      metrics.smax = Math.max(stage.clientWidth / (size * 0.11), stage.clientHeight / (size * 0.45)) * 1.1
+      // Scale at which the stem alone covers the screen. The 30% margin absorbs
+      // sub-pixel aim error (measured at about 5% of the stem width).
+      const cover = Math.max(stage.clientWidth / (size * ink.stem), stage.clientHeight / (size * ink.height)) * 1.3
+      metrics.smax = cover * 1.35
+      metrics.cover = Math.pow(Math.log(cover) / Math.log(metrics.smax), 1 / 1.6)
       line.style.transformOrigin = `${originX}px ${originY}px`
     }
 
     const draw = () => {
+      if (still) return
       const view = stage.clientHeight || window.innerHeight || 1
       const local = window.scrollY - root.offsetTop
-      if (still) {
-        if (statementRef.current) statementRef.current.style.opacity = "1"
-        return
-      }
       const t = clamp(local / (2 * view))
       const scale = Math.exp(Math.log(metrics.smax) * Math.pow(t, 1.6))
       const weight = rise(0, 0.9, t)
       const tilt = -3 * Math.sin(Math.PI * clamp(t / 0.6))
       line.style.transform = `translate(${metrics.dx * weight}px, ${metrics.dy * weight}px) rotate(${tilt}deg) scale(${scale})`
-      if (maskRef.current) maskRef.current.style.opacity = String(1 - rise(0.84, 0.97, t))
+      // Gold letters first, then the page shows inside them as we dive in.
+      if (faceRef.current) faceRef.current.style.opacity = String(rise(0.22, 0.62, t))
+      // Only drop the letters once the "I" fills the screen: no grey bands.
+      if (maskRef.current) maskRef.current.style.opacity = String(1 - rise(metrics.cover, Math.min(0.975, metrics.cover + 0.035), t))
+      if (auraRef.current) auraRef.current.style.opacity = String(1 - rise(0, 0.35, t))
       const fade = rise(0, 0.14, t)
       if (statsRef.current) {
         statsRef.current.style.opacity = String(1 - fade)
         statsRef.current.style.transform = `translateY(${fade * 34}px)`
       }
       if (hintRef.current) hintRef.current.style.opacity = String(1 - rise(0, 0.05, t))
-      const shown = rise(1.7 * view, 2.25 * view, local)
-      if (statementRef.current) {
-        statementRef.current.style.opacity = String(shown)
-        statementRef.current.style.transform = `translateY(${(1 - shown) * 26}px)`
-      }
       if (glowRef.current) glowRef.current.style.transform = `scale(${1 + 0.14 * t}) translate3d(${-3 * t}%, 0, 0)`
+      // The real page sits under the pinned letters until it reaches the top,
+      // exactly where the copy inside the letter is, then comes to the front.
+      root.classList.toggle("is-open", local >= 2 * view - 2)
+      if (!primed && local > view * 0.4) {
+        primed = true
+        // Settle the first screen of the real page early, while it is still hidden.
+        const sheetTop = sheet.getBoundingClientRect().top
+        sheet.querySelectorAll(".why-reveal").forEach((item) => {
+          if (item.getBoundingClientRect().top - sheetTop < view * 1.1) item.classList.add("is-in")
+        })
+      }
     }
 
     const onScroll = () => {
@@ -484,7 +637,7 @@ function WhyPage() {
       frame = requestAnimationFrame(draw)
     }
 
-    const items = [...root.querySelectorAll(".why-reveal")]
+    const items = [...sheet.querySelectorAll(".why-reveal")]
     const observer = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
         if (entry.isIntersecting) {
@@ -505,42 +658,41 @@ function WhyPage() {
     if (ready && ready.then) ready.then(relayout)
     window.addEventListener("scroll", onScroll, { passive: true })
     window.addEventListener("resize", relayout)
+    // Follow Lenis inside its own frame so the swap lands on the same frame.
+    let unhook = null
+    let hookFrame = 0
+    const hook = () => {
+      const lenis = getLenis()
+      if (lenis) unhook = lenis.on("scroll", draw)
+      else if (!still) hookFrame = requestAnimationFrame(hook)
+    }
+    hook()
     return () => {
       cancelAnimationFrame(frame)
+      cancelAnimationFrame(hookFrame)
+      unhook?.()
       observer.disconnect()
       window.removeEventListener("scroll", onScroll)
       window.removeEventListener("resize", relayout)
     }
   }, [])
 
-  const points = (list, side) => (
-    <div className={side === "right" ? "why-col is-right" : "why-col"}>
-      {list.map((item, index) => (
-        <article className="why-feat why-reveal" style={{ "--d": `${index * 0.1}s` }} key={item.title}>
-          <span className="why-ic" aria-hidden="true">
-            <svg viewBox="0 0 24 24">{item.mark}</svg>
-          </span>
-          <div>
-            <h3>{item.title}</h3>
-            <p>{item.body}</p>
-          </div>
-        </article>
-      ))}
-    </div>
-  )
-
   return (
     <section className="why-story" ref={rootRef} aria-label="Why Siriz">
       <div className="why-pin" ref={pinRef}>
-        <div className="why-stage" ref={stageRef}>
+        <div className="why-stage" ref={stageRef} data-tone="dark">
           <div className="why-glow" ref={glowRef} />
           <div className="why-shade" />
+          <div className="why-sheet is-face" ref={faceRef} aria-hidden="true" inert="">
+            <WhyContent face />
+          </div>
           <div className="why-mask" ref={maskRef}>
             <h2 className="why-line" ref={lineRef} aria-label="Why Siriz Interiors">
               <span>Why S<span ref={letterRef}>I</span>riz</span>
               <span>Interiors</span>
             </h2>
           </div>
+          <div className="why-aura" ref={auraRef} aria-hidden="true" />
           <div className="why-stats" ref={statsRef}>
             <p><b>10 yrs</b><span>Warranty on wood work</span></p>
             <p><b>45 days</b><span>Guaranteed delivery</span></p>
@@ -548,32 +700,10 @@ function WhyPage() {
             <p><b>1 login</b><span>Progress, designs, payments</span></p>
           </div>
           <p className="why-cue" ref={hintRef}>Scroll</p>
-          <div className="why-statement" ref={statementRef}>
-            <small>Siriz Interiors</small>
-            <i />
-            <h2>We design your dream home, <em>the excellence of interior</em></h2>
-            <p>A full range of planning and turnkey fit-out services in the interior industry.</p>
-          </div>
         </div>
       </div>
-      <div className="why-sheet" ref={sheetRef}>
-        <div className="why-wrap">
-          <h2 className="why-heading why-reveal">Why <span>Siriz Interiors</span></h2>
-          <div className="why-lede why-reveal">
-            <q>We Design your Dream Home, the excellence of interior</q>
-            <p>Siriz Interiors provides a full range of planning and turnkey fit-out services in the interior industry.</p>
-          </div>
-          <div className="why-cols">
-            {points(WHY_LEFT, "left")}
-            <div className="why-gems" aria-hidden="true">
-              {WHY_GEMS.map((gem, index) => (
-                <img className={`why-gem is-${gem.place} why-reveal`} style={{ "--d": `${0.1 + index * 0.12}s` }} key={gem.src} src={gem.src} alt="" />
-              ))}
-            </div>
-            {points(WHY_RIGHT, "right")}
-          </div>
-          <p className="why-foot why-reveal">Siriz Interiors</p>
-        </div>
+      <div className="why-sheet" ref={sheetRef} data-tone="light">
+        <WhyContent />
       </div>
     </section>
   )
@@ -618,14 +748,131 @@ const CYCLE = [
   },
 ]
 
-const CYCLE_SPOTS = [
-  { x: "50%", y: "10%" },
-  { x: "84%", y: "30%" },
-  { x: "84%", y: "70%" },
-  { x: "50%", y: "90%" },
-  { x: "16%", y: "70%" },
-  { x: "16%", y: "30%" },
-]
+// Work Process: a small isometric room that builds itself, one stage per step.
+// x runs to the lower right, y to the lower left, z up; units are roughly 40 cm.
+const ISO_U = 16
+const ISO_CX = 200
+const ISO_CY = 150
+const ROOM = { w: 10, d: 10, h: 6.5 }
+function iso(x, y, z = 0) {
+  return `${(ISO_CX + (x - y) * 0.866 * ISO_U).toFixed(1)},${(ISO_CY + (x + y) * 0.5 * ISO_U - z * ISO_U).toFixed(1)}`
+}
+function poly(...points) {
+  return points.map((point) => iso(...point)).join(" ")
+}
+
+function IsoBox({ x, y, z = 0, w, d, h, className = "" }) {
+  return (
+    <g className={`iso-box ${className}`}>
+      <polygon className="f-y" points={poly([x, y + d, z], [x + w, y + d, z], [x + w, y + d, z + h], [x, y + d, z + h])} />
+      <polygon className="f-x" points={poly([x + w, y, z], [x + w, y + d, z], [x + w, y + d, z + h], [x + w, y, z + h])} />
+      <polygon className="f-top" points={poly([x, y, z + h], [x + w, y, z + h], [x + w, y + d, z + h], [x, y + d, z + h])} />
+    </g>
+  )
+}
+
+function RoomScene({ step }) {
+  const on = (index) => (step >= index ? "is-on" : "")
+  const furniture = step >= 4 ? "is-solid" : step >= 2 ? "is-wire" : ""
+  const { w, d, h } = ROOM
+  const grid = []
+  for (let i = 1; i < 10; i += 1) {
+    grid.push(<line key={`gx${i}`} x1={iso(i, 0).split(",")[0]} y1={iso(i, 0).split(",")[1]} x2={iso(i, d).split(",")[0]} y2={iso(i, d).split(",")[1]} />)
+    grid.push(<line key={`gy${i}`} x1={iso(0, i).split(",")[0]} y1={iso(0, i).split(",")[1]} x2={iso(w, i).split(",")[0]} y2={iso(w, i).split(",")[1]} />)
+  }
+  const [lampX, lampY] = iso(5.4, 5.6, 4.3).split(",").map(Number)
+  const [poolX, poolY] = iso(5.4, 5.6, 0).split(",").map(Number)
+  const [plantX, plantY] = iso(8.85, 1.65, 1.1).split(",").map(Number)
+  return (
+    <svg className="wp-scene" viewBox="18 4 376 320" role="img" aria-label="A room being designed, planned, built and lived in">
+      <defs>
+        <radialGradient id="wp-pool">
+          <stop offset="0" stopColor="#ffd88a" stopOpacity="0.55" />
+          <stop offset="1" stopColor="#ffd88a" stopOpacity="0" />
+        </radialGradient>
+        <radialGradient id="wp-bulb">
+          <stop offset="0" stopColor="#fff2c8" stopOpacity="1" />
+          <stop offset="0.35" stopColor="#ffd27a" stopOpacity="0.6" />
+          <stop offset="1" stopColor="#ffd27a" stopOpacity="0" />
+        </radialGradient>
+      </defs>
+
+      {/* 1 · Meet a designer: the plan is sketched on the floor */}
+      <g className={`wp-plan ${on(0)}`}>
+        <g className="wp-grid">{grid}</g>
+        <polygon className="wp-outline" pathLength="1" points={poly([0, 0], [w, 0], [w, d], [0, d])} />
+        <polyline className="wp-dim" points={poly([0, d + 0.9], [w, d + 0.9])} />
+        <polyline className="wp-dim" points={poly([w + 0.9, 0], [w + 0.9, d])} />
+      </g>
+
+      {/* 2 · Start designing: floor and walls go up, with a window and a door */}
+      <g className={`wp-shell ${on(1)}`}>
+        <polygon className="wp-floor" points={poly([0, 0], [w, 0], [w, d], [0, d])} />
+        <g className="wp-rise">
+          <polygon className="wp-wall wp-wall-l" points={poly([0, 0, 0], [0, d, 0], [0, d, h], [0, 0, h])} />
+          <polygon className="wp-wall wp-wall-r" points={poly([0, 0, 0], [w, 0, 0], [w, 0, h], [0, 0, h])} />
+          <polygon className="wp-window" points={poly([0, 3.6, 3], [0, 6.8, 3], [0, 6.8, 5.3], [0, 3.6, 5.3])} />
+          <polyline className="wp-mullion" points={poly([0, 5.2, 3], [0, 5.2, 5.3])} />
+          <polygon className="wp-door" points={poly([7.9, 0, 0], [9.4, 0, 0], [9.4, 0, 4.4], [7.9, 0, 4.4])} />
+        </g>
+      </g>
+
+      {/* 5 · Move-in, part one: rug and light pool sit under the furniture */}
+      <g className={`wp-life wp-life-floor ${on(5)}`}>
+        <polygon className="wp-rug" points={poly([3.4, 3.7, 0.02], [7.4, 3.7, 0.02], [7.4, 8.2, 0.02], [3.4, 8.2, 0.02])} />
+        <ellipse className="wp-pool" cx={poolX} cy={poolY} rx="96" ry="50" fill="url(#wp-pool)" />
+      </g>
+
+      {/* 3 · View in 3D (wireframe), 5 · Production (real materials drop in) */}
+      <g className={`wp-furniture ${furniture}`}>
+        <g className="wp-piece" style={{ "--i": 0 }}><IsoBox x={0.2} y={0.2} w={2.4} d={1.1} h={5.2} className="m-wood" /></g>
+        <g className="wp-piece" style={{ "--i": 1 }}>
+          <IsoBox x={3.2} y={0.2} w={4.2} d={1} h={1.1} className="m-wood-dark" />
+          <polygon className="m-screen" points={poly([3.8, 0.06, 2], [6.8, 0.06, 2], [6.8, 0.06, 3.9], [3.8, 0.06, 3.9])} />
+        </g>
+        <g className="wp-piece" style={{ "--i": 2 }}>
+          <IsoBox x={0.2} y={2.8} w={0.7} d={4.6} h={2.3} className="m-fabric" />
+          <IsoBox x={0.2} y={2.6} w={2.6} d={0.5} h={1.6} className="m-fabric" />
+          <IsoBox x={0.9} y={3.1} w={1.9} d={4.1} h={1.1} className="m-fabric-light" />
+          <IsoBox x={0.2} y={7.2} w={2.6} d={0.5} h={1.6} className="m-fabric" />
+        </g>
+        <g className="wp-piece" style={{ "--i": 3 }}><IsoBox x={4.4} y={4.6} w={2.2} d={2.6} h={0.8} className="m-marble" /></g>
+      </g>
+
+      {/* 6 · Move-in: plant, pendant light on, window glow */}
+      <g className={`wp-life ${on(5)}`}>
+        <IsoBox x={8.4} y={1.2} w={0.9} d={0.9} h={0.9} className="m-pot" />
+        <g className="wp-plant">
+          <ellipse cx={plantX} cy={plantY} rx="13" ry="16" />
+          <ellipse cx={plantX - 10} cy={plantY + 6} rx="9" ry="12" />
+          <ellipse cx={plantX + 10} cy={plantY + 4} rx="9" ry="12" />
+        </g>
+        <line className="wp-cord" x1={lampX} y1={lampY - 36} x2={lampX} y2={lampY - 6} />
+        <circle className="wp-glow" cx={lampX} cy={lampY + 4} r="46" fill="url(#wp-bulb)" />
+        <polygon className="wp-shade" points={`${lampX - 11},${lampY + 4} ${lampX + 11},${lampY + 4} ${lampX + 5},${lampY - 7} ${lampX - 5},${lampY - 7}`} />
+      </g>
+
+      {/* 4 · Plan: the schedule card fills in */}
+      <g className={`wp-schedule ${on(3)}`}>
+        <rect className="wp-card" x="262" y="14" width="126" height="84" rx="8" />
+        <text x="274" y="32">Schedule</text>
+        {[0, 1, 2, 3].map((row) => (
+          <g key={row}>
+            <rect className="wp-track" x="274" y={42 + row * 13} width="100" height="6" rx="3" />
+            <rect className="wp-bar" x={274 + row * 14} y={42 + row * 13} width={44 + (row % 2) * 12} height="6" rx="3" style={{ "--i": row }} />
+          </g>
+        ))}
+      </g>
+
+      {/* 1 · Meet a designer: the first conversation */}
+      <g className={`wp-talk ${step === 0 ? "is-on" : ""}`}>
+        <rect x="24" y="22" width="92" height="28" rx="14" />
+        <circle cx="44" cy="36" r="3" /><circle cx="56" cy="36" r="3" /><circle cx="68" cy="36" r="3" />
+        <rect x="60" y="58" width="72" height="24" rx="12" className="is-you" />
+      </g>
+    </svg>
+  )
+}
 
 function CyclePage() {
   const rootRef = useRef(null)
@@ -636,16 +883,18 @@ function CyclePage() {
     if (!root) return undefined
     const sticky = root.querySelector(".cycle-sticky")
     let frame = 0
+    let lastY = window.scrollY
     const place = () => {
       const view = window.innerHeight || 1
-      root.style.height = `${view * (CYCLE.length + 1)}px`
+      root.style.height = `${view * (1 + CYCLE.length * 0.75)}px`
       if (sticky) sticky.style.height = `${view}px`
       const span = Math.max(1, root.offsetHeight - view)
       const y = window.scrollY
       const progress = Math.min(1, Math.max(0, (y - root.offsetTop) / span))
       const step = progress * CYCLE.length
-      const down = y >= root.dataset.cycleY
-      root.dataset.cycleY = String(y)
+      const down = y >= lastY
+      lastY = y
+      root.style.setProperty("--p", String(Math.min(1, step / CYCLE.length)))
       const next = down
         ? (step < 0.08 ? -1 : Math.min(CYCLE.length - 1, Math.floor(step + 0.92) - 1))
         : Math.min(CYCLE.length - 1, Math.floor(step + 0.08) - 1)
@@ -670,29 +919,63 @@ function CyclePage() {
     if (!root) return
     const view = window.innerHeight || 1
     const span = Math.max(1, root.offsetHeight - view)
-    window.scrollTo({ top: root.offsetTop + ((index + 1) / CYCLE.length) * span, behavior: "smooth" })
+    const top = root.offsetTop + ((index + 1) / CYCLE.length) * span
+    const lenis = getLenis()
+    if (lenis) lenis.scrollTo(top, { duration: 1.2, easing: easeOutExpo, force: true })
+    else window.scrollTo({ top, behavior: "smooth" })
   }
 
+  const current = active >= 0 ? CYCLE[active] : null
+  // The colour story: blueprint while designing, workshop while building, golden at home.
+  const phase = active >= 5 ? "home" : active >= 3 ? "build" : "design"
+
   return (
-    <section className="cycle-page" ref={rootRef} aria-label="Work process">
+    <section className="cycle-page" ref={rootRef} aria-label="Work process" data-tone="dark" data-phase={phase}>
       <div className="cycle-sticky">
-        <h2 className="cycle-title">Work Process</h2>
-        <div className={active >= 0 ? "cycle-ring is-open" : "cycle-ring"}>
-          <div className="cycle-veil" aria-hidden="true" />
-          {CYCLE.map((item, index) => (
-            <button
-              key={item.n}
-              type="button"
-              className={index === active ? "cycle-node is-pop" : "cycle-node"}
-              style={{ "--x": CYCLE_SPOTS[index].x, "--y": CYCLE_SPOTS[index].y, "--ink": item.color }}
-              onClick={() => open(index)}
-              aria-pressed={index === active}
-            >
-              <b>{item.n}</b>
-              <strong>{item.title}</strong>
-              <p>{item.body}</p>
-            </button>
-          ))}
+        <div className="wp-layout">
+          <div className="wp-copy">
+            <p className="cycle-kicker" data-reveal>How we work · Six steps</p>
+            <h2 className="cycle-title" data-reveal style={{ "--d": "0.08s" }}>Work Process</h2>
+            <ol className="wp-steps">
+              {CYCLE.map((item, index) => (
+                <li key={item.n}>
+                  <button
+                    type="button"
+                    className={index === active ? "is-on" : index < active ? "is-done" : ""}
+                    style={{ "--ink": item.color }}
+                    onClick={() => open(index)}
+                    aria-current={index === active ? "step" : undefined}
+                  >
+                    <b>{pad(item.n)}</b>
+                    <span>{item.title}</span>
+                  </button>
+                </li>
+              ))}
+            </ol>
+            <div className="wp-detail" aria-live="polite">
+              {current ? (
+                <div className="wp-card-text" key={active} style={{ "--ink": current.color }}>
+                  <span>{`Step ${current.n} of ${CYCLE.length}`}</span>
+                  <strong>{current.title}</strong>
+                  <p>{current.body}</p>
+                </div>
+              ) : (
+                <div className="wp-card-text" key="intro">
+                  <span>From first meeting to move-in</span>
+                  <strong>Watch a room come together.</strong>
+                  <p>Scroll and watch the room get planned, drawn, built and lived in, one step at a time.</p>
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="wp-stage">
+            <RoomScene step={active} />
+            <div className="wp-dots" aria-hidden="true">
+              {CYCLE.map((item, index) => (
+                <i key={item.n} className={index <= active ? "is-on" : ""} style={{ "--ink": item.color }} />
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -758,7 +1041,170 @@ const AWARDS = [
 
 function RecognitionPage() {
   const railRef = useRef(null)
+  const trackRef = useRef(null)
+  const moveRef = useRef(null)
   const [flipped, setFlipped] = useState(() => AWARDS.map(() => false))
+
+  // The rail drifts left on its own; drag, swipe, a sideways trackpad scroll or
+  // the arrow buttons move it either way, and a fling eases back into the drift.
+  useEffect(() => {
+    const rail = railRef.current
+    const track = trackRef.current
+    if (!rail || !track) return undefined
+    const calm = reduced()
+    let width = track.scrollWidth / 2
+    let offset = 0
+    let velocity = 0
+    let hover = false
+    let visible = true
+    let drag = null
+    let slide = null
+    let suppress = false
+    let frame = 0
+    let last = 0
+
+    const drift = () => (calm ? 0 : -width / 34)
+    const wrap = (value) => {
+      if (!width) return value
+      let next = value % width
+      if (next > 0) next -= width
+      return next
+    }
+    const paint = () => {
+      track.style.transform = `translate3d(${wrap(offset).toFixed(2)}px, 0, 0)`
+    }
+
+    const step = (now) => {
+      const dt = Math.min(0.05, (now - last) / 1000 || 0.016)
+      last = now
+      if (slide) {
+        const done = Math.min(1, (now - slide.start) / slide.time)
+        offset = slide.from + (slide.to - slide.from) * (1 - (1 - done) ** 3)
+        if (done >= 1) {
+          slide = null
+          velocity = 0
+          offset = wrap(offset)
+        }
+      } else if (!drag) {
+        const target = hover || rail.contains(document.activeElement) ? 0 : drift()
+        velocity += (target - velocity) * Math.min(1, dt * 2.2)
+        offset = wrap(offset + velocity * dt)
+      }
+      paint()
+      if (visible) frame = requestAnimationFrame(step)
+      else frame = 0
+    }
+    const wake = () => {
+      if (frame || !visible) return
+      last = performance.now()
+      frame = requestAnimationFrame(step)
+    }
+
+    const slot = () => track.querySelector(".award-slot")?.offsetWidth || 250
+    moveRef.current = (direction) => {
+      const size = slot()
+      const from = slide ? slide.to : offset
+      const to = Math.round((from - direction * size) / size) * size
+      if (calm) {
+        offset = wrap(to)
+        paint()
+        return
+      }
+      slide = { from: offset, to, start: performance.now(), time: 520 }
+      wake()
+    }
+
+    const onDown = (event) => {
+      if (event.pointerType === "mouse" && event.button !== 0) return
+      drag = { id: event.pointerId, lastX: event.clientX, lastT: performance.now(), moved: 0, speed: 0, held: false }
+      slide = null
+    }
+    const onMove = (event) => {
+      if (!drag || event.pointerId !== drag.id) return
+      const now = performance.now()
+      const dx = event.clientX - drag.lastX
+      drag.moved += Math.abs(dx)
+      if (drag.moved > 6 && !drag.held) {
+        drag.held = true
+        rail.setPointerCapture?.(event.pointerId)
+        rail.classList.add("is-dragging")
+      }
+      offset += dx
+      drag.speed = drag.speed * 0.6 + (dx / Math.max(1, now - drag.lastT)) * 1000 * 0.4
+      drag.lastX = event.clientX
+      drag.lastT = now
+      paint()
+    }
+    const onUp = (event) => {
+      if (!drag || event.pointerId !== drag.id) return
+      if (drag.held) {
+        velocity = Math.max(-2600, Math.min(2600, drag.speed))
+        suppress = true
+        window.setTimeout(() => {
+          suppress = false
+        }, 60)
+      }
+      drag = null
+      rail.classList.remove("is-dragging")
+      wake()
+    }
+    // A drag must not also turn the badge it started on.
+    const onClick = (event) => {
+      if (!suppress) return
+      event.preventDefault()
+      event.stopPropagation()
+    }
+    const onWheel = (event) => {
+      if (Math.abs(event.deltaX) <= Math.abs(event.deltaY)) return
+      event.preventDefault()
+      slide = null
+      velocity = 0
+      offset -= event.deltaX
+      paint()
+      wake()
+    }
+    const onEnter = (event) => {
+      if (event.pointerType === "mouse") hover = true
+    }
+    const onLeave = () => {
+      hover = false
+    }
+    const onResize = () => {
+      width = track.scrollWidth / 2
+    }
+
+    const observer = new IntersectionObserver((entries) => {
+      visible = entries[0].isIntersecting
+      wake()
+    })
+    observer.observe(rail)
+    rail.addEventListener("pointerdown", onDown)
+    rail.addEventListener("pointermove", onMove)
+    rail.addEventListener("pointerup", onUp)
+    rail.addEventListener("pointercancel", onUp)
+    rail.addEventListener("click", onClick, true)
+    rail.addEventListener("wheel", onWheel, { passive: false })
+    rail.addEventListener("pointerenter", onEnter)
+    rail.addEventListener("pointerleave", onLeave)
+    window.addEventListener("resize", onResize)
+    paint()
+    wake()
+    return () => {
+      visible = false
+      cancelAnimationFrame(frame)
+      observer.disconnect()
+      moveRef.current = null
+      rail.removeEventListener("pointerdown", onDown)
+      rail.removeEventListener("pointermove", onMove)
+      rail.removeEventListener("pointerup", onUp)
+      rail.removeEventListener("pointercancel", onUp)
+      rail.removeEventListener("click", onClick, true)
+      rail.removeEventListener("wheel", onWheel)
+      rail.removeEventListener("pointerenter", onEnter)
+      rail.removeEventListener("pointerleave", onLeave)
+      window.removeEventListener("resize", onResize)
+    }
+  }, [])
 
   useEffect(() => {
     const rail = railRef.current
@@ -844,11 +1290,11 @@ function RecognitionPage() {
   }
 
   return (
-    <section className="award-page" aria-label="Recognition">
-      <p className="award-kicker">Recognition · Four honours</p>
-      <h2 className="award-title">Recognised for the rooms we build.</h2>
+    <section className="award-page" aria-label="Recognition" data-tone="dark">
+      <p className="award-kicker" data-reveal>Recognition · Four honours</p>
+      <h2 className="award-title" data-reveal style={{ "--d": "0.08s" }}>Recognised for the rooms we build.</h2>
       <div className="award-rail" ref={railRef}>
-        <div className="award-track">
+        <div className="award-track" ref={trackRef}>
         {[0, 1].map((copy) => (
           <div className="award-set" key={copy} aria-hidden={copy === 1 || undefined}>
           {AWARDS.map((award, index) => (
@@ -868,7 +1314,7 @@ function RecognitionPage() {
                 <span className="award-in">
                   <span className="award-face award-front">
                     <span className="award-band"><span>{award.tag}</span><span>2023</span></span>
-                    <span className="award-pic"><img src={award.image} alt="" /></span>
+                    <span className="award-pic"><img src={award.image} alt="" draggable={false} /></span>
                     <span className="award-copy">
                       <strong>{award.title}</strong>
                       <em>{award.summary}</em>
@@ -899,7 +1345,15 @@ function RecognitionPage() {
         ))}
         </div>
       </div>
-      <p className="award-hint">The badges travel along the rail. Click a badge to turn it over.</p>
+      <div className="award-controls" data-reveal style={{ "--d": "0.16s" }}>
+        <button type="button" aria-label="Previous badge" onClick={() => moveRef.current?.(-1)}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 6l-6 6 6 6" /></svg>
+        </button>
+        <button type="button" aria-label="Next badge" onClick={() => moveRef.current?.(1)}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 6l6 6-6 6" /></svg>
+        </button>
+      </div>
+      <p className="award-hint" data-reveal style={{ "--d": "0.2s" }}>Drag or swipe the rail to move it. Click a badge to turn it over.</p>
     </section>
   )
 }
@@ -913,6 +1367,7 @@ function PortfolioStage() {
     const root = rootRef.current
     if (!root) return undefined
     const cards = [...root.querySelectorAll(".folio-card")]
+    const ambient = [...root.querySelectorAll(".folio-ambient img")]
     let frame = 0
     const draw = () => {
       const view = window.innerHeight || 1
@@ -946,10 +1401,24 @@ function PortfolioStage() {
       root.querySelectorAll("[data-folio-count]").forEach((node) => {
         node.textContent = count
       })
-      const title = root.querySelector("[data-folio-title]")
-      const kind = root.querySelector("[data-folio-kind]")
-      if (title) title.textContent = project.title
-      if (kind) kind.textContent = `${project.typology} / ${project.scope}`
+      ambient.forEach((layer, index) => {
+        layer.style.opacity = String(Math.max(0, 1 - Math.abs(index - active)))
+      })
+      if (root.dataset.folioShown !== String(shown)) {
+        root.dataset.folioShown = String(shown)
+        const title = root.querySelector("[data-folio-title]")
+        const kind = root.querySelector("[data-folio-kind]")
+        const summary = root.querySelector("[data-folio-summary]")
+        if (title) title.textContent = project.title
+        if (kind) kind.textContent = `${project.typology} / ${project.scope}`
+        if (summary) summary.textContent = project.summary
+        const meta = root.querySelector(".folio-meta")
+        if (meta) {
+          meta.classList.remove("is-swap")
+          void meta.offsetWidth
+          meta.classList.add("is-swap")
+        }
+      }
       const fill = root.querySelector(".folio-meter span")
       if (fill) fill.style.width = `${((shown + 1) / cards.length) * 100}%`
     }
@@ -964,7 +1433,10 @@ function PortfolioStage() {
       const jump = span / Math.max(1, projects.length - 1)
       const index = Math.round((window.scrollY - root.offsetTop) / jump)
       const next = Math.min(projects.length - 1, Math.max(0, index + direction))
-      window.scrollTo(0, root.offsetTop + next * jump)
+      const top = root.offsetTop + next * jump
+      const lenis = getLenis()
+      if (lenis) lenis.scrollTo(top, { duration: 1.1, easing: easeOutExpo, force: true })
+      else window.scrollTo(0, top)
     }
     root.querySelector("[data-folio-prev]").onclick = () => step(-1)
     root.querySelector("[data-folio-next]").onclick = () => step(1)
@@ -1002,7 +1474,7 @@ function PortfolioStage() {
       }
       const tick = (now) => {
         if (!alive || root.dataset.folioReady === "1") return
-        const travel = 1 - (1 - Math.min(1, (now - began) / 1700)) ** 3
+        const travel = 1 - (1 - Math.min(1, (now - began) / 1100)) ** 3
         const narrow = window.matchMedia("(max-width: 760px)").matches
         const x = (narrow ? -30 : -28) * (1 - travel)
         const y = -1.5 * (1 - travel)
@@ -1012,7 +1484,7 @@ function PortfolioStage() {
         else stop()
       }
       requestAnimationFrame(tick)
-      window.setTimeout(stop, 1750)
+      window.setTimeout(stop, 1150)
     }
     window.addEventListener("scroll", onScroll, { passive: true })
     window.addEventListener("scroll", playTitle, { passive: true })
@@ -1033,10 +1505,16 @@ function PortfolioStage() {
       className="folio-stage is-curve"
       ref={rootRef}
       data-header="light"
+      data-tone="dark"
       style={{ height: `${projects.length * 100}svh` }}
       aria-label="Portfolio"
     >
       <div className="folio-pin">
+        <div className="folio-ambient" aria-hidden="true">
+          {projects.map((project, index) => (
+            <img key={project.slug} src={project.cover} alt="" loading="lazy" style={{ opacity: index === 0 ? 1 : 0 }} />
+          ))}
+        </div>
         <div className="folio-stack">
           {projects.map((project, index) => (
             <figure className="folio-card" key={project.slug}>
@@ -1050,6 +1528,15 @@ function PortfolioStage() {
           <p data-folio-count>{`01 / ${total}`}</p>
           <h2 data-folio-title>{projects[0].title}</h2>
           <p data-folio-kind>{`${projects[0].typology} / ${projects[0].scope}`}</p>
+          <p className="folio-summary" data-folio-summary>{projects[0].summary}</p>
+          <button
+            type="button"
+            className="folio-view"
+            onClick={() => setOpen(Number(rootRef.current?.dataset.folioShown || 0))}
+          >
+            <span>View project</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+          </button>
         </div>
         <div className="folio-award">
           <strong>Our<br />Works</strong>
@@ -1074,16 +1561,11 @@ function PortfolioStage() {
 
 function WorkSheet({ index, total, onClose, onStep }) {
   const project = projects[index]
+  const api = useSmooth()
   useEffect(() => {
-    const y = window.scrollY
-    document.body.style.top = `-${y}px`
-    document.documentElement.classList.add("is-scroll-locked")
-    return () => {
-      document.documentElement.classList.remove("is-scroll-locked")
-      document.body.style.top = ""
-      window.scrollTo(0, y)
-    }
-  }, [])
+    api.stop()
+    return () => api.start()
+  }, [api])
 
   useEffect(() => {
     const onKey = (event) => {
@@ -1159,6 +1641,14 @@ function useCurvedReveal() {
       previous.dataset.pinShift = String(nextShift)
       previous.style.transform = `translateY(${nextShift}px)`
       previous.style.zIndex = "1"
+      // Pin the walkthrough's picture in this same frame; otherwise it sits at the
+      // section's bottom for a frame and the page background flashes through.
+      const film = previous.querySelector(".enter-reel-pin")
+      if (film) {
+        film.style.position = "fixed"
+        film.style.top = "0"
+        film.style.bottom = "auto"
+      }
       curve.style.zIndex = "2"
       const open = 1 - top / view
       const bow = Math.pow(Math.max(0, 1 - open), 0.22)
@@ -1173,9 +1663,21 @@ function useCurvedReveal() {
     }
     window.addEventListener("scroll", onScroll, { passive: true })
     window.addEventListener("resize", onScroll)
+    // Lenis moves the page inside its own frame; following it there keeps the
+    // pinned walkthrough glued to the top instead of trailing a frame behind.
+    let unhook = null
+    let hookFrame = 0
+    const hook = () => {
+      const lenis = getLenis()
+      if (lenis) unhook = lenis.on("scroll", place)
+      else hookFrame = requestAnimationFrame(hook)
+    }
+    hook()
     place()
     return () => {
       cancelAnimationFrame(frame)
+      cancelAnimationFrame(hookFrame)
+      unhook?.()
       window.removeEventListener("scroll", onScroll)
       window.removeEventListener("resize", onScroll)
       sheet.style.clipPath = ""
@@ -1186,11 +1688,19 @@ function useCurvedReveal() {
   }, [])
 }
 
+/**
+ * Scroll behaviour for the home page.
+ *
+ * Everywhere except the walkthrough, Lenis gives free, inertial smooth scroll.
+ * Inside the walkthrough the page still steps room by room, because each
+ * step plays a stretch of the walk video and has to land on a fixed frame.
+ */
 function usePageTurn(transportRef) {
   useEffect(() => {
     if (reduced()) return undefined
     let animating = false
     let touchY = 0
+    let touchX = 0
     let armed = false
     let armTimer = 0
     let wheelSum = 0
@@ -1204,14 +1714,16 @@ function usePageTurn(transportRef) {
       }, ms)
     }
 
-    const pages = () =>
-      [...document.querySelectorAll("main section"), document.querySelector(".site-footer")].filter(Boolean)
-
     const reelRange = () => {
       const reel = document.querySelector(".enter-reel")
       const view = window.innerHeight || 1
       if (!reel) return { start: 0, end: 0 }
       return { start: reel.offsetTop, end: reel.offsetTop + reel.offsetHeight - view }
+    }
+
+    const roomStops = () => {
+      const { start, end } = reelRange()
+      return [0, 1, 2, 3].map((step) => Math.round(start + ((end - start) * step) / 3))
     }
 
     const insideReel = (direction) => {
@@ -1226,54 +1738,97 @@ function usePageTurn(transportRef) {
       return y + 2 < last
     }
 
-    const roomStops = () => {
-      const { start, end } = reelRange()
-      return [0, 1, 2, 3].map((step) => Math.round(start + ((end - start) * step) / 3))
+    // Hold the page at the top of the portfolio until its title has settled.
+    const folioHold = (direction) => {
+      const folio = document.querySelector(".folio-stage")
+      return direction > 0 && folio && folio.dataset.folioReady !== "1" && window.scrollY >= folio.offsetTop - 24
     }
 
-    const stops = () => {
+    // Below the walkthrough, every wheel tick or swipe glides to the next "page":
+    // the portfolio curtain, each project card, the Why Siriz zoom, each screen of
+    // its content panel, each Work Process step, Recognition and the footer.
+    const pageStops = () => {
       const view = window.innerHeight || 1
-      const points = [0]
-      pages().forEach((el) => {
-        if (el.classList.contains("enter-reel")) return
-        const top = el.offsetTop
-        const height = el.offsetHeight
-        points.push(top)
-        if (el.classList.contains("turn-page")) return
-        if (height > view + 48) {
-          const last = top + height - view
-          let y = top + view
-          while (y < last - 24) {
-            points.push(y)
-            y += view
-          }
-          points.push(last)
-        }
-      })
-      const max = Math.max(0, document.documentElement.scrollHeight - view)
-      points.push(max)
-      return [...new Set(points.map((point) => Math.round(point)))].sort((a, b) => a - b)
-    }
-
-    const glide = (top, duration = 1080, smooth = false) => {
-      const start = window.scrollY
-      const change = top - start
-      if (Math.abs(change) < 2) return false
-      animating = true
-      const began = performance.now()
-      const ease = smooth
-        ? (t) => (t < 0.5 ? 4 * t * t * t : 1 - ((-2 * t + 2) ** 3) / 2)
-        : duration > 1400 ? (t) => t : duration < 700 ? (t) => 1 - (1 - t) ** 2 : (t) => 1 - (1 - t) ** 4
-      const step = (now) => {
-        const progress = Math.min(1, (now - began) / duration)
-        window.scrollTo(0, start + change * ease(progress))
-        if (progress < 1) requestAnimationFrame(step)
-        else {
-          animating = false
-          holdWheel(380)
+      const stops = []
+      const folio = document.querySelector(".folio-stage")
+      if (folio) {
+        stops.push(folio.offsetTop)
+        if (folio.dataset.folioReady === "1") {
+          const count = folio.querySelectorAll(".folio-card").length
+          const jump = Math.max(1, folio.offsetHeight - view) / Math.max(1, count - 1)
+          for (let index = 1; index < count; index += 1) stops.push(folio.offsetTop + index * jump)
         }
       }
-      requestAnimationFrame(step)
+      const why = document.querySelector(".why-story")
+      if (why) {
+        const top = why.offsetTop
+        const end = top + why.offsetHeight - view
+        stops.push(top)
+        const sheet = why.querySelector(":scope > .why-sheet")
+        // One glide runs the whole zoom and lands with the content panel at the top.
+        const start = sheet ? sheet.getBoundingClientRect().top + window.scrollY : end
+        // Even steps through the panel: none longer than 85% of the screen (so no
+        // content is skipped) and none a short sliver (which feels stuck).
+        const steps = Math.max(1, Math.ceil((end - start) / (view * 0.85)))
+        for (let index = 0; index < steps; index += 1) stops.push(start + ((end - start) * index) / steps)
+        stops.push(end)
+      }
+      const cycle = document.querySelector(".cycle-page")
+      if (cycle) {
+        const span = Math.max(1, cycle.offsetHeight - view)
+        stops.push(cycle.offsetTop)
+        // Step i shows at the same spot whichever way you scroll.
+        for (let index = 1; index <= CYCLE.length; index += 1) stops.push(cycle.offsetTop + (index / CYCLE.length) * span)
+      }
+      const award = document.querySelector(".award-page")
+      if (award) stops.push(award.offsetTop)
+      stops.push(Math.max(0, document.documentElement.scrollHeight - view))
+      const first = folio ? folio.offsetTop : 0
+      return [...new Set(stops.map((stop) => Math.round(stop)))].filter((stop) => stop >= first).sort((x, z) => x - z)
+    }
+
+    const pageTarget = (direction) => {
+      const y = window.scrollY
+      const lastRoom = roomStops().at(-1) || 0
+      if (y < lastRoom - 2) return null
+      const stops = pageStops()
+      if (direction > 0) return stops.find((stop) => stop > y + 8) ?? null
+      return [...stops].reverse().find((stop) => stop < y - 8) ?? null
+    }
+
+    const goPage = (direction) => {
+      const target = pageTarget(direction)
+      if (target == null) return false
+      const view = window.innerHeight || 1
+      const distance = Math.abs(target - window.scrollY) / view
+      const duration = Math.min(1900, Math.max(900, 700 + distance * 450))
+      if (!glide(target, duration)) holdWheel(380)
+      return true
+    }
+
+    const glide = (top, duration, linear = false) => {
+      const lenis = getLenis()
+      if (Math.abs(top - window.scrollY) < 2) return false
+      animating = true
+      let settled = false
+      const done = () => {
+        if (settled) return
+        settled = true
+        animating = false
+        holdWheel(380)
+      }
+      if (lenis) {
+        lenis.scrollTo(top, {
+          duration: duration / 1000,
+          easing: linear ? (t) => t : (t) => 1 - (1 - t) ** 4,
+          lock: true,
+          force: true,
+          onComplete: done,
+        })
+      } else {
+        window.scrollTo(0, top)
+      }
+      window.setTimeout(done, duration + 260)
       return true
     }
 
@@ -1293,83 +1848,48 @@ function usePageTurn(transportRef) {
       }
       const last = points[points.length - 1]
       if (direction < 0 && y > last + 24) {
-        animating = true
         transportRef.current?.parkEnd?.()
-        const moved = glide(last, 1080)
-        if (!moved) {
-          animating = false
-          holdWheel(380)
-        }
+        if (!glide(last, 1100)) holdWheel(380)
         return
       }
       animating = true
       const pending = transportRef.current?.move(from, to)
       const startGlide = (duration) => {
-        const moved = glide(points[to], duration || 3200)
-        if (!moved) {
-          animating = false
-          holdWheel(380)
-        }
+        animating = false
+        const time = duration || 3200
+        if (!glide(points[to], time, time > 1400)) holdWheel(380)
       }
       if (pending && pending.then) pending.then(startGlide)
       else startGlide(pending)
     }
 
-    const go = (direction) => {
-      if (animating || insideReel(direction)) return
-      const folio = document.querySelector(".folio-stage")
-      if (direction > 0 && folio && folio.dataset.folioReady !== "1" && window.scrollY >= folio.offsetTop - 24) return
-      const points = stops()
-      const y = window.scrollY
-      const cycle = document.querySelector(".cycle-page")
-      const view = window.innerHeight || 1
-      const cycleStart = cycle ? cycle.offsetTop - 4 : -1
-      const cycleEnd = cycle ? cycle.offsetTop + Math.max(0, cycle.offsetHeight - view) + 4 : -1
-      const cycleGlide = (target) => {
-        const inside = y >= cycleStart && y <= cycleEnd && target >= cycleStart && target <= cycleEnd
-        return glide(target, inside ? 1320 : 1080, inside)
-      }
-      if (direction > 0) {
-        const next = points.find((point) => point > y + 16)
-        if (next != null) cycleGlide(next)
-        return
-      }
-      const prev = [...points].reverse().find((point) => point < y - 16)
-      if (prev == null) return
-      const lastRoom = roomStops().at(-1) || 0
-      if (y > lastRoom + 24 && prev <= lastRoom + 24) {
-        goRoom(-1)
-        return
-      }
-      cycleGlide(prev)
-    }
-
     const blocked = () => document.querySelector(".menu.is-open")
     const locked = () => document.documentElement.classList.contains("is-scroll-locked")
+    const ownScroll = (target) => target?.closest?.(".bot-panel, .bot-stage, .work-pop, .menu, [data-lenis-prevent]")
 
-    const whyPin = () => {
-      const why = document.querySelector(".why-story")
-      const pin = why?.querySelector(".why-pin")
-      if (!why || !pin) return null
-      const view = window.innerHeight || 1
-      return { start: why.offsetTop, end: why.offsetTop + pin.offsetHeight - view }
-    }
-
-    const scrubWhy = (direction) => {
-      const range = whyPin()
-      if (!range) return false
-      const y = window.scrollY
-      if (direction > 0) return y >= range.start - 2 && y < range.end - 16
-      return y > range.start + 16 && y <= range.end + 16
-    }
+    // Tell Lenis to keep its hands off the gestures this hook handles itself.
+    const removeGuard = addScrollGuard((data) => {
+      if (blocked() || locked() || ownScroll(data.event?.target)) return true
+      // Sideways gestures belong to the award rail, not to the page.
+      if (Math.abs(data.deltaX || 0) > Math.abs(data.deltaY)) return false
+      if (animating) return false
+      const direction = data.deltaY > 0 ? 1 : data.deltaY < 0 ? -1 : 0
+      if (!direction) return true
+      return !insideReel(direction) && !folioHold(direction) && pageTarget(direction) == null
+    })
 
     const onWheel = (event) => {
-      if (blocked() || locked()) return
-      const wheelDirection = event.deltaY > 0 ? 1 : -1
-      if (scrubWhy(wheelDirection)) return
-      if (insideReel(wheelDirection)) {
+      if (blocked() || locked() || ownScroll(event.target)) return
+      if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) return
+      const direction = event.deltaY > 0 ? 1 : event.deltaY < 0 ? -1 : 0
+      if (!direction) return
+      if (animating) {
         event.preventDefault()
-        if (animating || armed) return
+        return
+      }
+      if (insideReel(direction)) {
+        event.preventDefault()
+        if (armed) return
         const now = performance.now()
         if (now - wheelStamp > 180) wheelSum = 0
         wheelStamp = now
@@ -1377,60 +1897,61 @@ function usePageTurn(transportRef) {
         if (Math.abs(wheelSum) < 28) return
         wheelSum = 0
         holdWheel(8000)
-        goRoom(wheelDirection)
+        goRoom(direction)
         return
       }
-      if (Math.abs(event.deltaY) < 6) return
-      event.preventDefault()
-      if (animating || armed) return
-      armed = true
-      go(event.deltaY > 0 ? 1 : -1)
-      window.setTimeout(() => {
-        armed = false
-      }, 1120)
+      if (folioHold(direction)) {
+        event.preventDefault()
+        return
+      }
+      if (pageTarget(direction) != null) {
+        event.preventDefault()
+        if (armed) return
+        const now = performance.now()
+        if (now - wheelStamp > 180) wheelSum = 0
+        wheelStamp = now
+        wheelSum += event.deltaY
+        if (Math.abs(wheelSum) < 28) return
+        wheelSum = 0
+        // Trackpads keep firing after the glide: ignore the rest of this gesture.
+        holdWheel(8000)
+        if (!goPage(direction)) holdWheel(380)
+      }
     }
-
-    let touchScrub = false
 
     const onTouchStart = (event) => {
       touchY = event.touches[0].clientY
-      touchScrub = false
+      touchX = event.touches[0].clientX
     }
+    // A mostly sideways swipe on the award rail moves the rail only.
+    const railSwipe = (event, point) => Boolean(event.target?.closest?.(".award-rail"))
+      && Math.abs(point.clientX - touchX) > Math.abs(point.clientY - touchY)
 
     const onTouchMove = (event) => {
-      if (blocked() || locked()) return
-      if (event.target.closest(".bot-panel, .bot-stage, .menu")) return
-      const y = event.touches[0].clientY
-      const direction = touchY - y >= 0 ? 1 : -1
-      if (scrubWhy(direction)) {
+      if (blocked() || locked() || ownScroll(event.target)) return
+      if (railSwipe(event, event.touches[0])) return
+      const direction = touchY - event.touches[0].clientY >= 0 ? 1 : -1
+      if (animating || insideReel(direction) || folioHold(direction) || pageTarget(direction) != null) {
         if (event.cancelable) event.preventDefault()
-        const range = whyPin()
-        const next = Math.min(range.end, Math.max(range.start, window.scrollY + (touchY - y)))
-        touchY = y
-        touchScrub = true
-        window.scrollTo(0, next)
-        return
       }
-      if (event.cancelable) event.preventDefault()
     }
 
     const onTouchEnd = (event) => {
-      if (blocked()) return
-      if (event.target.closest(".bot-panel, .bot-stage, .menu")) return
-      if (touchScrub) {
-        touchScrub = false
-        return
-      }
+      if (blocked() || ownScroll(event.target)) return
+      if (railSwipe(event, event.changedTouches[0])) return
       const delta = touchY - event.changedTouches[0].clientY
       if (Math.abs(delta) < 28) return
-      const touchDirection = delta > 0 ? 1 : -1
-      if (insideReel(touchDirection)) {
-        if (animating || armed) return
+      const direction = delta > 0 ? 1 : -1
+      if (animating || armed) return
+      if (insideReel(direction)) {
         holdWheel(8000)
-        goRoom(touchDirection)
+        goRoom(direction)
         return
       }
-      go(delta > 0 ? 1 : -1)
+      if (pageTarget(direction) != null) {
+        holdWheel(8000)
+        goPage(direction)
+      }
     }
 
     window.addEventListener("wheel", onWheel, { passive: false })
@@ -1438,10 +1959,12 @@ function usePageTurn(transportRef) {
     window.addEventListener("touchmove", onTouchMove, { passive: false })
     window.addEventListener("touchend", onTouchEnd, { passive: true })
     return () => {
+      removeGuard()
+      window.clearTimeout(armTimer)
       window.removeEventListener("wheel", onWheel)
       window.removeEventListener("touchstart", onTouchStart)
       window.removeEventListener("touchmove", onTouchMove)
       window.removeEventListener("touchend", onTouchEnd)
     }
-  }, [])
+  }, [transportRef])
 }

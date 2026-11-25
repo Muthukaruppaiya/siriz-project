@@ -1,5 +1,6 @@
-import { Link } from "react-router-dom"
+import { useRef } from "react"
 import { studio } from "../data/site"
+import { useReveal, useSmooth } from "../scroll"
 
 function Chevron() {
   return <svg className="glass-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
@@ -7,19 +8,25 @@ function Chevron() {
 
 export default function Footer() {
   const year = new Date().getFullYear()
+  const api = useSmooth()
+  const rootRef = useRef(null)
+  useReveal(rootRef)
+
   return (
-    <footer className="site-footer">
+    <footer className="site-footer" ref={rootRef} data-tone="light">
       <div className="footer-sheet">
-        <p className="footer-hello">How can we help?</p>
-        <p className="footer-lead">{studio.location}</p>
-        <div className="footer-rows">
-          <Link className="glass-row" to="/">
-            <span className="glass-ico" aria-hidden="true">
-              <svg viewBox="0 0 24 24"><path d="M4 11.5 12 4l8 7.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z" /></svg>
-            </span>
-            <span>Home</span>
-            <Chevron />
-          </Link>
+        <div className="footer-intro">
+          <p className="footer-kicker" data-reveal>Visit · Call · Write</p>
+          <p className="footer-hello" data-reveal style={{ "--d": "0.06s" }}>
+            Let’s design your <em>dream home.</em>
+          </p>
+          <p className="footer-lead" data-reveal style={{ "--d": "0.12s" }}>{studio.location}</p>
+          <div className="footer-cta" data-reveal style={{ "--d": "0.18s" }}>
+            <a className="footer-btn is-solid" href={studio.phoneHref}>Call the studio</a>
+            <a className="footer-btn" href={studio.whatsapp} target="_blank" rel="noreferrer">WhatsApp us</a>
+          </div>
+        </div>
+        <div className="footer-rows" data-reveal style={{ "--d": "0.1s" }}>
           <a className="glass-row" href={studio.phoneHref}>
             <span className="glass-ico" aria-hidden="true">
               <svg viewBox="0 0 24 24"><path d="M8 4h3l1.2 3.2-1.8 1.1a12 12 0 0 0 5.3 5.3l1.1-1.8L20 13v3a2 2 0 0 1-2.2 2A16 16 0 0 1 4 6.2 2 2 0 0 1 6 4z" /></svg>
@@ -56,7 +63,14 @@ export default function Footer() {
             <Chevron />
           </a>
         </div>
-        <p className="footer-bottom">© {year} Siriz Interiors</p>
+      </div>
+      <p className="footer-mark" aria-hidden="true">Siriz Interiors</p>
+      <div className="footer-bottom">
+        <span>© {year} Siriz Interiors · Medavakkam, Chennai</span>
+        <button type="button" className="footer-top" onClick={() => api.scrollTo(0, { duration: 2.2 })}>
+          Back to top
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6" /></svg>
+        </button>
       </div>
     </footer>
   )
