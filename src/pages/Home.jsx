@@ -330,7 +330,7 @@ export default function Home() {
 
   return (
     <>
-      <section className="enter-reel" ref={reelRef} data-header="light" data-tone="photo">
+      <section className="enter-reel" id="home" ref={reelRef} data-header="light" data-tone="photo">
         <div className="enter-reel-pin" ref={pinRef}>
           <video ref={videoRef} className="enter-film" src="/walk.mp4" poster="/walk-mobile/frame-001.jpg" muted playsInline preload="auto" />
           <video ref={backRef} className="enter-film is-back" src="/walk-back.mp4" muted playsInline preload="metadata" />
@@ -421,68 +421,52 @@ function rise(start, end, value) {
 
 // Each reason is shown as a real interior material swatch, chosen to suit it.
 const WHY_MATERIALS = [
-  { key: "oak", name: "Oak", finish: "Laminate", r: -2.2 },
-  { key: "teak", name: "Teak", finish: "Veneer", r: 1.6 },
-  { key: "linen", name: "Linen", finish: "Weave", r: -1.2 },
-  { key: "brass", name: "Brass", finish: "Brushed", r: 2.4 },
-  { key: "glass", name: "Glass", finish: "Frosted", r: -1.8 },
-  { key: "terrazzo", name: "Terrazzo", finish: "Chip", r: 1.2 },
-  { key: "blueprint", name: "Blueprint", finish: "Plan", r: -2.6 },
-  { key: "marble", name: "Marble", finish: "Carrara", r: 2 },
+  { key: "oak", name: "Oak", finish: "Laminate" },
+  { key: "teak", name: "Teak", finish: "Veneer" },
+  { key: "linen", name: "Linen", finish: "Weave" },
+  { key: "brass", name: "Brass", finish: "Brushed" },
+  { key: "glass", name: "Glass", finish: "Frosted" },
+  { key: "terrazzo", name: "Terrazzo", finish: "Chip" },
+  { key: "blueprint", name: "Blueprint", finish: "Plan" },
+  { key: "marble", name: "Marble", finish: "Carrara" },
 ]
-
-// Swatches with the four project photos pinned between them, like a mood board.
-const WHY_BOARD = [
-  ["swatch", 0], ["photo", 0], ["swatch", 1], ["swatch", 2],
-  ["swatch", 3], ["swatch", 4], ["photo", 1], ["swatch", 5],
-  ["photo", 2], ["swatch", 6], ["swatch", 7], ["photo", 3],
-]
-const WHY_PHOTO_TILT = [2.8, -3.2, 2.2, -2.4]
 
 function WhyContent({ face = false }) {
-  // The copy seen through the letters is drawn already revealed, so it matches
-  // the real page pixel for pixel at the moment they swap. Tags stay identical
-  // so both copies take the same styles; the copy is aria-hidden and inert.
-  const reveal = face ? "why-reveal is-in" : "why-reveal"
+  // Both copies use the same tags so they rise together. The face copy is what
+  // shows through the letters; it is aria-hidden and inert.
   const reasons = [...WHY_LEFT, ...WHY_RIGHT]
   return (
-    <div className="mb-wrap">
+    <div className="mb-wrap" data-face={face ? "true" : undefined}>
       <div className="mb-ruler" aria-hidden="true" />
       <header className="mb-head">
         <div className="mb-head-main">
-          <p className={`mb-kicker ${reveal}`}>The Siriz material board</p>
-          <h2 className={`mb-title ${reveal}`} style={{ "--d": "0.06s" }}>
-            Why <em>Siriz Interiors</em>
-          </h2>
+          <p className="mb-kicker">The Siriz material board</p>
+          <h2 className="mb-title">Why <em>Siriz Interiors</em></h2>
         </div>
         <div className="mb-head-side">
-          <q className={`mb-quote ${reveal}`} style={{ "--d": "0.12s" }}>We Design your Dream Home, the excellence of interior</q>
-          <p className={`mb-lede ${reveal}`} style={{ "--d": "0.18s" }}>
+          <q className="mb-quote">We Design your Dream Home, the excellence of interior</q>
+          <p className="mb-lede">
             Siriz Interiors provides a full range of planning and turnkey fit-out services in the interior industry.
           </p>
-          <p className={`mb-legend ${reveal}`} style={{ "--d": "0.24s" }}>
+          <p className="mb-legend">
             <span>8 reasons</span><i /><span>8 materials</span><i /><span>1 studio</span>
           </p>
         </div>
       </header>
-      <div className="mb-board">
-        {WHY_BOARD.map(([kind, index], order) => {
-          const delay = { "--d": `${(order % 4) * 0.08}s` }
-          if (kind === "photo") {
-            return (
-              <figure className={`mb-photo ${reveal}`} style={{ ...delay, "--r": `${WHY_PHOTO_TILT[index]}deg` }} key={`p${index}`}>
-                <span className="mb-tape" aria-hidden="true" />
-                <img src={projects[index].cover} alt={projects[index].coverAlt} loading="lazy" draggable={false} />
-                <figcaption>{projects[index].title}<small>{projects[index].typology}</small></figcaption>
-              </figure>
-            )
-          }
-          const item = reasons[index]
+      <div className="mb-gallery">
+        {projects.slice(0, 4).map((project) => (
+          <figure className="mb-photo" key={project.slug}>
+            <img src={project.cover} alt={project.coverAlt} loading="lazy" draggable={false} />
+            <figcaption>{project.title}<small>{project.typology}</small></figcaption>
+          </figure>
+        ))}
+      </div>
+      <div className="mb-list">
+        {reasons.map((item, index) => {
           const material = WHY_MATERIALS[index]
           return (
-            <article className={`mb-swatch is-${material.key} ${reveal}`} style={{ ...delay, "--r": `${material.r}deg` }} key={item.title}>
+            <article className={`mb-swatch is-${material.key}`} key={item.title}>
               <div className="mb-chip">
-                <span className="mb-hole" aria-hidden="true" />
                 <span className="mb-name">{material.name}<small>{material.finish}</small></span>
                 <span className="mb-no">{pad(index + 1)}</span>
               </div>
@@ -497,7 +481,7 @@ function WhyContent({ face = false }) {
           )
         })}
       </div>
-      <p className={`mb-foot ${reveal}`}>Siriz Interiors · Feel your comfort</p>
+      <p className="mb-foot">Siriz Interiors · Feel your comfort</p>
     </div>
   )
 }
@@ -533,7 +517,6 @@ function WhyPage() {
     if (still) root.classList.add("is-still")
     const metrics = { dx: 0, dy: 0, smax: 6, cover: 0.9 }
     let frame = 0
-    let primed = false
 
     // Measure the ink of the "I" in the real font: the width of its stem, its
     // height, and where its ink sits inside the letter box. The zoom must make
@@ -621,32 +604,14 @@ function WhyPage() {
       if (glowRef.current) glowRef.current.style.transform = `scale(${1 + 0.14 * t}) translate3d(${-3 * t}%, 0, 0)`
       // The real page sits under the pinned letters until it reaches the top,
       // exactly where the copy inside the letter is, then comes to the front.
-      root.classList.toggle("is-open", local >= 2 * view - 2)
-      if (!primed && local > view * 0.4) {
-        primed = true
-        // Settle the first screen of the real page early, while it is still hidden.
-        const sheetTop = sheet.getBoundingClientRect().top
-        sheet.querySelectorAll(".why-reveal").forEach((item) => {
-          if (item.getBoundingClientRect().top - sheetTop < view * 1.1) item.classList.add("is-in")
-        })
-      }
+      const open = local >= 2 * view - 2
+      root.classList.toggle("is-open", open)
     }
 
     const onScroll = () => {
       cancelAnimationFrame(frame)
       frame = requestAnimationFrame(draw)
     }
-
-    const items = [...sheet.querySelectorAll(".why-reveal")]
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add("is-in")
-          observer.unobserve(entry.target)
-        }
-      })
-    }, { threshold: 0.12 })
-    items.forEach((item) => observer.observe(item))
 
     const relayout = () => {
       measure()
@@ -671,14 +636,13 @@ function WhyPage() {
       cancelAnimationFrame(frame)
       cancelAnimationFrame(hookFrame)
       unhook?.()
-      observer.disconnect()
       window.removeEventListener("scroll", onScroll)
       window.removeEventListener("resize", relayout)
     }
   }, [])
 
   return (
-    <section className="why-story" ref={rootRef} aria-label="Why Siriz">
+    <section className="why-story" id="why" ref={rootRef} aria-label="Why Siriz">
       <div className="why-pin" ref={pinRef}>
         <div className="why-stage" ref={stageRef} data-tone="dark">
           <div className="why-glow" ref={glowRef} />
@@ -702,7 +666,7 @@ function WhyPage() {
           <p className="why-cue" ref={hintRef}>Scroll</p>
         </div>
       </div>
-      <div className="why-sheet" ref={sheetRef} data-tone="light">
+      <div className="why-sheet" ref={sheetRef} data-tone="dark">
         <WhyContent />
       </div>
     </section>
@@ -930,7 +894,7 @@ function CyclePage() {
   const phase = active >= 5 ? "home" : active >= 3 ? "build" : "design"
 
   return (
-    <section className="cycle-page" ref={rootRef} aria-label="Work process" data-tone="dark" data-phase={phase}>
+    <section className="cycle-page" id="process" ref={rootRef} aria-label="Work process" data-tone="dark" data-phase={phase}>
       <div className="cycle-sticky">
         <div className="wp-layout">
           <div className="wp-copy">
@@ -1290,7 +1254,7 @@ function RecognitionPage() {
   }
 
   return (
-    <section className="award-page" aria-label="Recognition" data-tone="dark">
+    <section className="award-page" id="recognition" aria-label="Recognition" data-tone="dark">
       <p className="award-kicker" data-reveal>Recognition · Four honours</p>
       <h2 className="award-title" data-reveal style={{ "--d": "0.08s" }}>Recognised for the rooms we build.</h2>
       <div className="award-rail" ref={railRef}>
@@ -1503,6 +1467,7 @@ function PortfolioStage() {
   return (
     <section
       className="folio-stage is-curve"
+      id="works"
       ref={rootRef}
       data-header="light"
       data-tone="dark"

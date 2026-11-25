@@ -1,29 +1,37 @@
 import { useEffect, useRef, useState } from "react"
-import { Link, useLocation } from "react-router-dom"
-import { nav, studio } from "../data/site"
+import { Link, useLocation, useNavigate } from "react-router-dom"
+import { studio } from "../data/site"
 import { useScrollFrame, useSmooth } from "../scroll"
 
-function isCurrent(pathname, to) {
-  if (to === "/") return pathname === "/"
-  return pathname === to || pathname.startsWith(`${to}/`)
-}
+const pages = [
+  { id: "home", label: "Home", icon: "M4 11.5 12 4l8 7.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z" },
+  { id: "works", label: "Our Works", icon: "M5 5h6v6H5zM13 5h6v6h-6zM5 13h6v6H5zM13 13h6v6h-6z" },
+  { id: "why", label: "Why Siriz", icon: "M12 4l1.6 4.2L18 10l-4.4 1.8L12 16l-1.6-4.2L6 10l4.4-1.8z" },
+  { id: "process", label: "Work Process", icon: "M5 7h14M5 12h14M5 17h9" },
+  { id: "recognition", label: "Recognition", icon: "M8 4h8v3a4 4 0 0 1-8 0zM8 6H6v1a3 3 0 0 0 3 3M16 6h2v1a3 3 0 0 1-3 3M12 14v3M9 20h6" },
+]
 
 export default function Header() {
-  const { pathname } = useLocation()
+  const { pathname, hash } = useLocation()
+  const navigate = useNavigate()
+  const currentPage = (hash || "#home").slice(1)
+
+  const goTo = (event, id) => {
+    event.preventDefault()
+    setOpen(false)
+    navigate(`/#${id}`)
+    window.setTimeout(() => {
+      const node = document.getElementById(id)
+      const top = node ? node.getBoundingClientRect().top + window.scrollY : 0
+      window.scrollTo({ top, behavior: "smooth" })
+    }, 90)
+  }
   const api = useSmooth()
   const [open, setOpen] = useState(false)
   const [light, setLight] = useState(false)
-  const [tucked, setTucked] = useState(false)
   const skipLock = useRef(true)
-  const lastY = useRef(0)
 
-  useScrollFrame((y) => {
-    const delta = y - lastY.current
-    if (Math.abs(delta) > 6) {
-      const hide = delta > 0 && y > 160
-      setTucked((value) => (value === hide ? value : hide))
-      lastY.current = y
-    }
+  useScrollFrame(() => {
     const nodes = document.querySelectorAll("[data-header='light']")
     let over = false
     nodes.forEach((node) => {
@@ -57,7 +65,7 @@ export default function Header() {
 
   return (
     <>
-      <header className={`site-header ${light && !open ? "is-light" : ""} ${open ? "is-open" : ""} ${tucked && !open ? "is-tucked" : ""}`}>
+      <header className={`site-header ${light && !open ? "is-light" : ""} ${open ? "is-open" : ""}`}>
         <Link to="/" className="brand" aria-label="Siriz Interiors, home">
           <img src="/logo.png" alt="Siriz Interiors" />
         </Link>
@@ -82,22 +90,20 @@ export default function Header() {
         <div className="menu-sheet">
           <p className="menu-hello">Where should we begin?</p>
           <nav className="menu-rows" aria-label="Pages">
-            {nav
-              .filter((item) => item.to === "/")
-              .map((item) => (
-                <Link
-                  key={item.to}
-                  to={item.to}
-                  className={`glass-row ${isCurrent(pathname, item.to) ? "is-current" : ""}`}
-                  onClick={() => setOpen(false)}
-                >
-                  <span className="glass-ico" aria-hidden="true">
-                    <svg viewBox="0 0 24 24"><path d="M4 11.5 12 4l8 7.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z" /></svg>
-                  </span>
-                  <span>{item.label}</span>
-                  <svg className="glass-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
-                </Link>
-              ))}
+            {pages.map((page) => (
+              <Link
+                key={page.id}
+                to={`/#${page.id}`}
+                className={`glass-row ${currentPage === page.id ? "is-current" : ""}`}
+                onClick={(event) => goTo(event, page.id)}
+              >
+                <span className="glass-ico" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d={page.icon} /></svg>
+                </span>
+                <span>{page.label}</span>
+                <svg className="glass-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+              </Link>
+            ))}
             <a className="glass-row" href={studio.phoneHref}>
               <span className="glass-ico" aria-hidden="true">
                 <svg viewBox="0 0 24 24"><path d="M8 4h3l1.2 3.2-1.8 1.1a12 12 0 0 0 5.3 5.3l1.1-1.8L20 13v3a2 2 0 0 1-2.2 2A16 16 0 0 1 4 6.2 2 2 0 0 1 6 4z" /></svg>
