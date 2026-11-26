@@ -25,7 +25,22 @@
         margin: 0;
         background: #f3eee4;
       }
+      /* a refresh keeps the visitor's place: hide the page until it is back there */
+      html.is-restoring #root { opacity: 0; }
+      html.is-restored #root { animation: siriz-restore-in 0.45s ease-out both; }
+      @keyframes siriz-restore-in { from { opacity: 0; } to { opacity: 1; } }
     </style>
+    <script>
+      try {
+        var nav = performance.getEntriesByType && performance.getEntriesByType("navigation")[0]
+        var reload = nav ? nav.type === "reload" : performance.navigation && performance.navigation.type === 1
+        if (reload && sessionStorage.getItem("siriz-scroll")) {
+          document.documentElement.classList.add("is-restoring")
+          // never leave the page hidden if something goes wrong
+          setTimeout(function () { document.documentElement.classList.remove("is-restoring") }, 4000)
+        }
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

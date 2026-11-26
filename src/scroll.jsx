@@ -24,6 +24,55 @@ function reduced() {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches
 }
 
+// ---------- remember where the visitor was, so a refresh keeps them there ----------
+const MEMORY_KEY = "siriz-scroll"
+
+function isReload() {
+  const nav = performance.getEntriesByType?.("navigation")?.[0]
+  return nav ? nav.type === "reload" : performance.navigation?.type === 1
+}
+
+/** True while a saved position is waiting to be restored after a reload. */
+export const restoringScroll = { pending: typeof window !== "undefined" && isReload() && Boolean(sessionStorage.getItem(MEMORY_KEY)) }
+
+function sections() {
+  return [...document.querySelectorAll("main section, footer.site-footer")]
+}
+
+// Save the section the page is in and how far through it, not the raw pixel
+// offset: section heights are set by script, so this survives small changes.
+function savePosition() {
+  if (restoringScroll.pending) return
+  const y = window.scrollY
+  const list = sections()
+  let index = -1
+  list.forEach((el, i) => {
+    if (el.offsetTop <= y + 2) index = i
+  })
+  const el = list[index]
+  const record = el
+    ? { index, ratio: (y - el.offsetTop) / Math.max(1, el.offsetHeight), y }
+    : { index: -1, ratio: 0, y }
+  try {
+    sessionStorage.setItem(MEMORY_KEY, JSON.stringify(record))
+  } catch {
+    /* storage can be full or blocked; the page just starts at the top then */
+  }
+}
+
+function savedTarget() {
+  try {
+    const record = JSON.parse(sessionStorage.getItem(MEMORY_KEY) || "null")
+    if (!record) return null
+    const el = sections()[record.index]
+    const y = el ? el.offsetTop + record.ratio * el.offsetHeight : record.y
+    const max = Math.max(0, document.documentElement.scrollHeight - window.innerHeight)
+    return Math.round(Math.min(max, Math.max(0, y)))
+  } catch {
+    return null
+  }
+}
+
 /** Expo-out: quick to respond, long soft landing. */
 export const easeOutExpo = (t) => (t === 1 ? 1 : 1 - 2 ** (-10 * t))
 
@@ -115,18 +164,70 @@ export function SmoothScroll({ children }) {
 
     emit()
     let frame = 0
+    let saveTimer = 0
     const schedule = () => {
+      window.clearTimeout(saveTimer)
+      saveTimer = window.setTimeout(savePosition, 160)
       if (frame) return
       frame = requestAnimationFrame(() => {
         frame = 0
         emit()
       })
     }
+    window.addEventListener("pagehide", savePosition)
+
+    // After a reload, wait for the sections to size themselves and the fonts
+    // to settle, then jump straight back to where the visitor was.
+    let restoreFrame = 0
+    let restoreTimer = 0
+    const reveal = () => {
+      const root = document.documentElement
+      if (!root.classList.contains("is-restoring")) return
+      root.classList.remove("is-restoring")
+      root.classList.add("is-restored")
+    }
+    if (!restoringScroll.pending) reveal()
+    if (restoringScroll.pending) {
+      const apply = () => {
+        const y = savedTarget()
+        if (y != null) {
+          window.scrollTo(0, y)
+          lenis?.scrollTo(y, { immediate: true, force: true })
+        }
+        restoringScroll.pending = false
+        emit()
+        // let the sections draw at the restored place, then show the page
+        restoreFrame = requestAnimationFrame(() => {
+          restoreFrame = requestAnimationFrame(reveal)
+        })
+        // a second, late pass in case images or fonts shifted the layout
+        restoreTimer = window.setTimeout(() => {
+          const again = savedTarget()
+          if (again != null && Math.abs(again - window.scrollY) > 4) {
+            window.scrollTo(0, again)
+            lenis?.scrollTo(again, { immediate: true, force: true })
+            emit()
+          }
+        }, 450)
+      }
+      const settle = () => {
+        restoreFrame = requestAnimationFrame(() => {
+          restoreFrame = requestAnimationFrame(apply)
+        })
+      }
+      const ready = document.fonts?.ready
+      if (ready && ready.then) ready.then(settle)
+      else settle()
+    }
     window.addEventListener("scroll", schedule, { passive: true })
     window.addEventListener("resize", schedule)
     return () => {
       cancelAnimationFrame(frame)
       cancelAnimationFrame(raf)
+      cancelAnimationFrame(restoreFrame)
+      window.clearTimeout(restoreTimer)
+      window.clearTimeout(saveTimer)
+      window.removeEventListener("pagehide", savePosition)
       window.removeEventListener("scroll", schedule)
       window.removeEventListener("resize", schedule)
       document.documentElement.classList.remove("is-scroll-locked")

@@ -1,5 +1,7 @@
 import { useEffect, useState, useRef } from "react"
 import { createPortal } from "react-dom"
+import ProcessRoom from "../components/ProcessRoom"
+import RoomView from "../components/RoomView"
 import { projects, studio } from "../data/site"
 import { addScrollGuard, easeOutExpo, getLenis, useReveal, useSmooth } from "../scroll"
 import { useTitle } from "../useTitle"
@@ -11,8 +13,13 @@ function reduced() {
 const ROOM_TIMES = [0, 299 / 60, 569 / 60, 799 / 60]
 const PLAY_RATE = 1.6
 
-function playRate() {
-  return window.matchMedia("(max-width: 760px)").matches ? 2.25 : PLAY_RATE
+// The first step (door to the first room) is the longest stretch of film, so it
+// plays faster to keep the opening scroll snappy.
+const FIRST_STEP_BOOST = 1.5
+
+function playRate(from = -1, to = -1) {
+  const base = window.matchMedia("(max-width: 760px)").matches ? 2.25 : PLAY_RATE
+  return Math.min(from, to) === 0 && Math.max(from, to) === 1 ? base * FIRST_STEP_BOOST : base
 }
 
 const ROOM_COPY = [
@@ -160,8 +167,7 @@ export default function Home() {
       window.setTimeout(finish, 420)
     })
 
-    const begin = (clip, start, end, token, done) => {
-      const rate = playRate()
+    const begin = (clip, start, end, token, done, rate = playRate()) => {
       clip.dataset.playing = "1"
       clip.playbackRate = rate
       if (Math.abs(clip.currentTime - start) > 0.08) clip.currentTime = start
@@ -185,7 +191,8 @@ export default function Home() {
       async move(from, to) {
         const forwardStart = ROOM_TIMES[from]
         const forwardEnd = ROOM_TIMES[to]
-        const duration = (Math.abs(forwardEnd - forwardStart) / playRate()) * 1000
+        const rate = playRate(from, to)
+        const duration = (Math.abs(forwardEnd - forwardStart) / rate) * 1000
         const token = ++playToken
         video.pause()
         back.pause()
@@ -198,7 +205,7 @@ export default function Home() {
           showForward()
           await waitReady(video, forwardStart, forwardEnd)
           if (token !== playToken) return duration
-          begin(video, forwardStart, forwardEnd, token, showForward)
+          begin(video, forwardStart, forwardEnd, token, showForward, rate)
           return duration
         }
         const length = back.duration || video.duration || 14.93
@@ -216,7 +223,7 @@ export default function Home() {
           }
           video.addEventListener("seeked", reveal, { once: true })
           video.currentTime = forwardEnd
-        })
+        }, rate)
         return duration
       },
       holdDoor() {
@@ -343,7 +350,6 @@ export default function Home() {
                 <span>Interiors</span>
               </span>
             </h1>
-            <p className="enter-note">Welcome to Siriz Interiors</p>
           </div>
           <div className="room-copy" ref={lineRef} />
         </div>
@@ -933,7 +939,7 @@ function CyclePage() {
             </div>
           </div>
           <div className="wp-stage">
-            <RoomScene step={active} />
+            <ProcessRoom step={active} fallback={<RoomScene step={active} />} />
             <div className="wp-dots" aria-hidden="true">
               {CYCLE.map((item, index) => (
                 <i key={item.n} className={index <= active ? "is-on" : ""} style={{ "--ink": item.color }} />
@@ -1527,6 +1533,7 @@ function PortfolioStage() {
 function WorkSheet({ index, total, onClose, onStep }) {
   const project = projects[index]
   const api = useSmooth()
+  const [view3d, setView3d] = useState(false)
   useEffect(() => {
     api.stop()
     return () => api.start()
@@ -1534,13 +1541,18 @@ function WorkSheet({ index, total, onClose, onStep }) {
 
   useEffect(() => {
     const onKey = (event) => {
-      if (event.key === "Escape") onClose()
+      if (event.key === "Escape") {
+        if (view3d) setView3d(false)
+        else onClose()
+        return
+      }
+      if (view3d) return
       if (event.key === "ArrowUp") onStep((index - 1 + total) % total)
       if (event.key === "ArrowDown") onStep((index + 1) % total)
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [index, total, onClose, onStep])
+  }, [index, total, onClose, onStep, view3d])
 
   return createPortal(
     <div className="work-pop" role="dialog" aria-modal="true" aria-label={project.title} onClick={onClose}>
@@ -1572,9 +1584,13 @@ function WorkSheet({ index, total, onClose, onStep }) {
               </button>
             </div>
           </div>
-          {project.tour && <a className="work-tour" href={project.tour} target="_blank" rel="noreferrer">View the 360 tour</a>}
+          <div className="work-links">
+            <button type="button" className="work-tour work-3d" onClick={() => setView3d(true)}>View in 3D</button>
+            {project.tour && <a className="work-tour" href={project.tour} target="_blank" rel="noreferrer">View the 360 tour</a>}
+          </div>
         </div>
       </article>
+      {view3d && <RoomView title={project.title} src={project.model} onClose={() => setView3d(false)} />}
     </div>,
     document.body
   )

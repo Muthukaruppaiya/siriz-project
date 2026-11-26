@@ -10,7 +10,7 @@ import Header from "./components/Header"
 import { ParallaxLayers } from "./components/Parallax"
 import { Progress } from "./components/Progress"
 import Home from "./pages/Home"
-import { SmoothScroll, useSmooth } from "./scroll"
+import { SmoothScroll, restoringScroll, useSmooth } from "./scroll"
 
 export default function App() {
   const { pathname } = useLocation()
@@ -50,6 +50,8 @@ function ScrollReset() {
   const { pathname } = useLocation()
   const api = useSmooth()
   useEffect(() => {
+    // A reload restores the visitor's place instead (see scroll.jsx).
+    if (restoringScroll.pending) return
     api.scrollTo(0, { immediate: true })
     window.scrollTo(0, 0)
   }, [pathname, api])
