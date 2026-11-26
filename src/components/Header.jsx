@@ -9,6 +9,7 @@ const pages = [
   { id: "why", label: "Why Siriz", icon: "M12 4l1.6 4.2L18 10l-4.4 1.8L12 16l-1.6-4.2L6 10l4.4-1.8z" },
   { id: "process", label: "Work Process", icon: "M5 7h14M5 12h14M5 17h9" },
   { id: "recognition", label: "Recognition", icon: "M8 4h8v3a4 4 0 0 1-8 0zM8 6H6v1a3 3 0 0 0 3 3M16 6h2v1a3 3 0 0 1-3 3M12 14v3M9 20h6" },
+  { id: "instagram", label: "Instagram", icon: "M7 4.5h10a2.5 2.5 0 0 1 2.5 2.5v10a2.5 2.5 0 0 1-2.5 2.5H7a2.5 2.5 0 0 1-2.5-2.5V7A2.5 2.5 0 0 1 7 4.5zM12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4zM16.4 7.6h.01" },
 ]
 
 export default function Header() {

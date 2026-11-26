@@ -359,6 +359,7 @@ export default function Home() {
       <WhyPage />
       <CyclePage />
       <RecognitionPage />
+      <InstagramPage />
     </>
   )
 }
@@ -425,16 +426,16 @@ function rise(start, end, value) {
   return t * t * (3 - 2 * t)
 }
 
-// Each reason is shown as a real interior material swatch, chosen to suit it.
-const WHY_MATERIALS = [
-  { key: "oak", name: "Oak", finish: "Laminate" },
-  { key: "teak", name: "Teak", finish: "Veneer" },
-  { key: "linen", name: "Linen", finish: "Weave" },
-  { key: "brass", name: "Brass", finish: "Brushed" },
-  { key: "glass", name: "Glass", finish: "Frosted" },
-  { key: "terrazzo", name: "Terrazzo", finish: "Chip" },
-  { key: "blueprint", name: "Blueprint", finish: "Plan" },
-  { key: "marble", name: "Marble", finish: "Carrara" },
+// One finished Siriz room behind each reason. The photo stays tucked until the card is opened.
+const WHY_ROOMS = [
+  projects[0].images[0],
+  projects[0].images[4],
+  projects[1].images[0],
+  projects[1].images[3],
+  projects[2].images[0],
+  projects[2].images[3],
+  projects[3].images[0],
+  projects[4].images[0],
 ]
 
 function WhyContent({ face = false }) {
@@ -455,29 +456,21 @@ function WhyContent({ face = false }) {
             Siriz Interiors provides a full range of planning and turnkey fit-out services in the interior industry.
           </p>
           <p className="mb-legend">
-            <span>8 reasons</span><i /><span>8 materials</span><i /><span>1 studio</span>
+            <span>8 reasons</span><i /><span>1 studio</span>
           </p>
         </div>
       </header>
-      <div className="mb-gallery">
-        {projects.slice(0, 4).map((project) => (
-          <figure className="mb-photo" key={project.slug}>
-            <img src={project.cover} alt={project.coverAlt} loading="lazy" draggable={false} />
-            <figcaption>{project.title}<small>{project.typology}</small></figcaption>
-          </figure>
-        ))}
-      </div>
-      <div className="mb-list">
+      <div className={`mb-list${face ? " is-face" : ""}`}>
         {reasons.map((item, index) => {
-          const material = WHY_MATERIALS[index]
+          const room = WHY_ROOMS[index]
           return (
-            <article className={`mb-swatch is-${material.key}`} key={item.title}>
-              <div className="mb-chip">
-                <span className="mb-name">{material.name}<small>{material.finish}</small></span>
-                <span className="mb-no">{pad(index + 1)}</span>
+            <article className="why-step" key={item.title} style={{ "--i": index }} tabIndex={face ? undefined : 0}>
+              <div className="why-step-media">
+                <img src={room.src} alt="" loading="lazy" draggable={false} />
               </div>
-              <div className="mb-info">
-                <span className="mb-ic" aria-hidden="true">
+              <span className="why-step-num">{pad(index + 1)}</span>
+              <div className="why-step-copy">
+                <span className="why-step-ic" aria-hidden="true">
                   <svg viewBox="0 0 24 24">{item.mark}</svg>
                 </span>
                 <h3>{item.title}</h3>
@@ -1328,6 +1321,116 @@ function RecognitionPage() {
   )
 }
 
+const IG_REELS = [
+  { code: "DfW20R5Sixw", file: "reel-1.mp4" },
+  { code: "DebFUlPyhch", file: "reel-2.mp4" },
+  { code: "DeYkWauywdq", file: "reel-3.mp4" },
+  { code: "DeJIcyZSfda", file: "reel-4.mp4" },
+  { code: "DeD35QEsrzW", file: "reel-5.mp4" },
+]
+
+function InstagramPage() {
+  const trackRef = useRef(null)
+  useEffect(() => {
+    const root = trackRef.current
+    if (!root || reduced()) return undefined
+    const videos = [...root.querySelectorAll("video")]
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        const video = entry.target
+        if (entry.isIntersecting) video.play().catch(() => {})
+        else video.pause()
+      })
+    }, { threshold: 0.5 })
+    videos.forEach((video) => observer.observe(video))
+    return () => observer.disconnect()
+  }, [])
+  const moveReels = (direction) => {
+    const track = trackRef.current
+    const card = track?.querySelector(".ig-card")
+    if (!track || !card) return
+    const gap = 16
+    track.scrollBy({ left: direction * (card.getBoundingClientRect().width + gap), behavior: "smooth" })
+  }
+
+  return (
+    <section className="ig-page" id="instagram" aria-label="Instagram" data-header="light">
+      <div className="ig-panel">
+        <div className="ig-header">
+          <div>
+            <p className="ig-badge">
+              <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="5" />
+                <circle cx="12" cy="12" r="4.2" />
+                <circle cx="17.2" cy="6.8" r="1" fill="currentColor" stroke="none" />
+              </svg>
+              Instagram
+            </p>
+            <h2 className="ig-title">Join our <em>Instagram family.</em></h2>
+            <p className="ig-lead">Tap a room to watch it on Instagram.</p>
+          </div>
+          <div className="ig-actions">
+            <a className="ig-follow" href={studio.instagram} target="_blank" rel="noreferrer">
+              <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="5" />
+                <circle cx="12" cy="12" r="4.2" />
+                <circle cx="17.2" cy="6.8" r="1" fill="currentColor" stroke="none" />
+              </svg>
+              Follow @siriz_interiors
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path d="M4.5 11.5 11.5 4.5M5.5 4.5h6v6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </a>
+            <div className="ig-controls">
+              <button type="button" className="ig-arrow" aria-label="Previous reels" onClick={() => moveReels(-1)}>
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true"><path d="M15 9H3.5M8 4.5 3.5 9 8 13.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              </button>
+              <button type="button" className="ig-arrow" aria-label="Next reels" onClick={() => moveReels(1)}>
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true"><path d="M3 9h11.5M10 4.5 14.5 9 10 13.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="ig-reels">
+          <ul className="ig-track" ref={trackRef}>
+            {IG_REELS.map((reel, index) => (
+              <li className="ig-card" key={reel.code} style={{ "--k": index % 2 ? 1 : -1 }}>
+                <a
+                  className="ig-card-link"
+                  href={`https://www.instagram.com/reel/${reel.code}/`}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="Watch this reel on Instagram"
+                >
+                  <video
+                    className="ig-card-image"
+                    src={`/instagram/${reel.file}`}
+                    muted
+                    loop
+                    playsInline
+                    preload="metadata"
+                  />
+                  <span className="ig-card-shade" aria-hidden="true" />
+                  <span className="ig-card-user" aria-hidden="true">
+                    <span className="ig-ring"><span className="ig-ring-inner">
+                      <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="5" />
+                        <circle cx="12" cy="12" r="4.2" />
+                        <circle cx="17.2" cy="6.8" r="1" fill="currentColor" stroke="none" />
+                      </svg>
+                    </span></span>
+                    siriz_interiors
+                  </span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 function PortfolioStage() {
   const rootRef = useRef(null)
   const total = pad(projects.length)
@@ -1748,10 +1851,20 @@ function usePageTurn(transportRef) {
         const sheet = why.querySelector(":scope > .why-sheet")
         // One glide runs the whole zoom and lands with the content panel at the top.
         const start = sheet ? sheet.getBoundingClientRect().top + window.scrollY : end
-        // Even steps through the panel: none longer than 85% of the screen (so no
-        // content is skipped) and none a short sliver (which feels stuck).
-        const steps = Math.max(1, Math.ceil((end - start) / (view * 0.85)))
-        for (let index = 0; index < steps; index += 1) stops.push(start + ((end - start) * index) / steps)
+        const cards = sheet ? [...sheet.querySelectorAll(".mb-list:not(.is-face) .why-step")] : []
+        // One stop per card, so a scroll eases the next card onto the stack
+        // instead of jumping across several at once.
+        if (cards.length) {
+          cards.forEach((card) => {
+            const sticky = parseFloat(getComputedStyle(card).top) || 0
+            const cardTop = card.getBoundingClientRect().top + window.scrollY
+            const land = Math.round(cardTop - sticky)
+            if (land > start + 24 && land < end - 24) stops.push(land)
+          })
+        } else {
+          const steps = Math.max(1, Math.ceil((end - start) / (view * 0.85)))
+          for (let index = 0; index < steps; index += 1) stops.push(start + ((end - start) * index) / steps)
+        }
         stops.push(end)
       }
       const cycle = document.querySelector(".cycle-page")
@@ -1763,6 +1876,8 @@ function usePageTurn(transportRef) {
       }
       const award = document.querySelector(".award-page")
       if (award) stops.push(award.offsetTop)
+      const instagram = document.querySelector(".ig-page")
+      if (instagram) stops.push(instagram.offsetTop)
       stops.push(Math.max(0, document.documentElement.scrollHeight - view))
       const first = folio ? folio.offsetTop : 0
       return [...new Set(stops.map((stop) => Math.round(stop)))].filter((stop) => stop >= first).sort((x, z) => x - z)
@@ -1782,11 +1897,12 @@ function usePageTurn(transportRef) {
       if (target == null) return false
       const view = window.innerHeight || 1
       const distance = Math.abs(target - window.scrollY) / view
-      const duration = Math.min(1900, Math.max(900, 700 + distance * 450))
+      const duration = Math.min(1900, Math.max(1200, 900 + distance * 420))
       if (!glide(target, duration)) holdWheel(380)
       return true
     }
 
+    let glideFrame = 0
     const glide = (top, duration, linear = false) => {
       const lenis = getLenis()
       if (Math.abs(top - window.scrollY) < 2) return false
@@ -1798,16 +1914,27 @@ function usePageTurn(transportRef) {
         animating = false
         holdWheel(380)
       }
+      const ease = linear ? (t) => t : (t) => t * t * (3 - 2 * t)
       if (lenis) {
         lenis.scrollTo(top, {
           duration: duration / 1000,
-          easing: linear ? (t) => t : (t) => 1 - (1 - t) ** 4,
+          easing: ease,
           lock: true,
           force: true,
           onComplete: done,
         })
       } else {
-        window.scrollTo(0, top)
+        const from = window.scrollY
+        const delta = top - from
+        const start = performance.now()
+        const step = (now) => {
+          const t = Math.min(1, (now - start) / duration)
+          window.scrollTo(0, from + delta * ease(t))
+          if (t < 1) glideFrame = requestAnimationFrame(step)
+          else done()
+        }
+        cancelAnimationFrame(glideFrame)
+        glideFrame = requestAnimationFrame(step)
       }
       window.setTimeout(done, duration + 260)
       return true
@@ -1905,7 +2032,7 @@ function usePageTurn(transportRef) {
       touchX = event.touches[0].clientX
     }
     // A mostly sideways swipe on the award rail moves the rail only.
-    const railSwipe = (event, point) => Boolean(event.target?.closest?.(".award-rail"))
+    const railSwipe = (event, point) => Boolean(event.target?.closest?.(".award-rail, .ig-track"))
       && Math.abs(point.clientX - touchX) > Math.abs(point.clientY - touchY)
 
     const onTouchMove = (event) => {
@@ -1941,6 +2068,7 @@ function usePageTurn(transportRef) {
     window.addEventListener("touchend", onTouchEnd, { passive: true })
     return () => {
       removeGuard()
+      cancelAnimationFrame(glideFrame)
       window.clearTimeout(armTimer)
       window.removeEventListener("wheel", onWheel)
       window.removeEventListener("touchstart", onTouchStart)
